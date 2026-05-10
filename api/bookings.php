@@ -88,8 +88,8 @@ if ($method === 'POST' && $action === 'create') {
         $extMap      = ['image/jpeg'=>'jpg','image/png'=>'png','image/gif'=>'gif','image/webp'=>'webp'];
         $ext         = $extMap[$mimeType] ?? 'jpg';
         $name        = bin2hex(random_bytes(12)) . '.' . $ext;
-        move_uploaded_file($file['tmp_name'], __DIR__ . '/../assets/uploads/' . $name);
-        $guestAvatar = '/assets/uploads/' . $name;
+        move_uploaded_file($file['tmp_name'], __DIR__ . '/../assets/avatars/' . $name);
+        $guestAvatar = '/assets/avatars/' . $name;
     }
     if (!$guestAvatar) {
         http_response_code(400);

@@ -119,7 +119,7 @@ if ($action === 'complete') {
     $userRow = $stmtU->fetch();
 
     // 2. Remove avatar file if uploaded
-    if ($userRow && $userRow['avatar_path'] && strpos($userRow['avatar_path'], '/assets/uploads/') === 0) {
+    if ($userRow && $userRow['avatar_path'] && strpos($userRow['avatar_path'], '/assets/avatars/') === 0) {
         $filePath = __DIR__ . '/..' . $userRow['avatar_path'];
         if (file_exists($filePath)) @unlink($filePath);
     }

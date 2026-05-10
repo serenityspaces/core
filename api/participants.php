@@ -168,7 +168,7 @@ if ($action === 'update_avatar') {
 
     // Always output JPEG — resize to 200×200 bounding box via GD
     $name = bin2hex(random_bytes(12)) . '.jpg';
-    $dest = __DIR__ . '/../assets/uploads/' . $name;
+    $dest = __DIR__ . '/../assets/avatars/' . $name;
 
     $src     = imagecreatefromstring(file_get_contents($file['tmp_name']));
     $resized = $src ? imagescale($src, 200, 200) : false;
@@ -179,7 +179,7 @@ if ($action === 'update_avatar') {
     if ($src)     imagedestroy($src);
     if ($resized) imagedestroy($resized);
 
-    $avatarPath = '/assets/uploads/' . $name;
+    $avatarPath = '/assets/avatars/' . $name;
 
     $pdo->prepare('UPDATE participants SET avatar_path = ? WHERE id = ?')
         ->execute([$avatarPath, $p['id']]);

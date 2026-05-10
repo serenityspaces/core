@@ -3,6 +3,7 @@ session_set_cookie_params(['secure'=>true,'httponly'=>true,'samesite'=>'Strict']
 session_start();
 require_once __DIR__ . '/../db/connection.php';
 require_once __DIR__ . '/../includes/security_headers.php';
+require_once __DIR__ . '/../includes/phi_crypto.php';
 require_once __DIR__ . '/../db/events.php';
 
 header('Content-Type: application/json');
@@ -65,11 +66,12 @@ if ($action === 'pin') {
     $stmt->execute([$messageId, $annotation ?: null]);
 
     if ($msgData) {
-        emitEvent($pdo, (int)$msgData['session_id'], 'pin', [
+        $sessionId = (int)$msgData['session_id'];
+        emitEvent($pdo, $sessionId, 'pin', [
             'message_id'   => $messageId,
             'is_pinned'    => true,
             'display_name' => $msgData['display_name'] ?? '',
-            'content'      => $msgData['content'],
+            'content'      => phi_decrypt($msgData['content'] ?? '', 'messages:' . $sessionId),
             'sent_at'      => $msgData['sent_at'],
             'annotation'   => $annotation ?: null,
         ]);

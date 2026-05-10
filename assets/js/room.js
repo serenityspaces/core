@@ -524,6 +524,10 @@ function renderMessage(msg) {
         const widget = buildMediaRecWidget(msg.content);
         body.appendChild(widget);
 
+    } else if (msgType === 'quote_card') {
+        el.classList.add('has-media-rec');
+        body.appendChild(buildQuoteWidget(msg.content));
+
     } else {
         // Plain text — strip embed URLs so they don't appear as text links
         const embeds = extractEmbeds(msg.content);
@@ -4975,6 +4979,23 @@ function buildMediaRecWidget(contentStr) {
     return wrap;
 }
 
+function buildQuoteWidget(contentStr) {
+    const wrap = document.createElement('div');
+    wrap.className = 'quote-card-widget';
+    let data;
+    try { data = JSON.parse(contentStr); } catch(e) { data = null; }
+    if (!data) { wrap.textContent = '[Quote]'; return wrap; }
+    const attrParts = [data.author, data.year].filter(Boolean);
+    let attrib = attrParts.join(', ');
+    if (data.source) attrib += (attrib ? ' — ' : '') + data.source;
+    wrap.innerHTML = `
+      <div class="qcw-label">✶ Shared Quote</div>
+      <div class="qcw-body">“${escHtml(data.body || data.title || '')}”</div>
+      ${attrib ? `<div class="qcw-attrib">— ${escHtml(attrib)}</div>` : ''}
+      ${data.category ? `<div class="qcw-cat">${escHtml(data.category)}</div>` : ''}`;
+    return wrap;
+}
+
 function openMediaRecModal() {
     const modal = document.getElementById('media-rec-modal');
     if (!modal) return;
@@ -5336,39 +5357,25 @@ function renderReferencesInModal(refs, query) {
     body.querySelectorAll('[data-ref-send]').forEach(row => {
         row.addEventListener('click', () => {
             const r = (_refsCache || []).find(x => String(x.id) === row.dataset.refSend);
-            if (r) sendReferenceToChat(r);
+            if (r) sendQuoteCard(r);
         });
     });
 }
 
-/**
- * Drop a reference into the chat input with full attribution preserved
- * end-to-end. Practitioner can edit before pressing Send.
- */
-function sendReferenceToChat(r) {
-    const lines = [];
-    if (r.body)       lines.push('"' + r.body + '"');
-    else if (r.title) lines.push(r.title);
-    const attrParts = [];
-    if (r.author) attrParts.push(r.author);
-    if (r.year)   attrParts.push(r.year);
-    let attribution = attrParts.join(', ');
-    if (r.source) attribution += (attribution ? ' — ' : '— ') + r.source;
-    if (attribution) lines.push('— ' + attribution);
-    const text = lines.join('\n');
-
-    // Close the share modal so the client can see what's about to be sent
-    closeMrmModal && closeMrmModal();
-
-    const inputEl = document.getElementById('msg-input');
-    if (inputEl) {
-        if (inputEl.value.trim() !== '') {
-            inputEl.value = inputEl.value.replace(/\s+$/, '') + '\n\n' + text;
-        } else {
-            inputEl.value = text;
-        }
-        inputEl.focus();
-        inputEl.style.height = 'auto';
-        inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
-    }
+async function sendQuoteCard(r) {
+    try {
+        const res = await fetch('/api/messages.php', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                action:       'send',
+                session_id:   cfg.sessionId,
+                content:      JSON.stringify(r),
+                message_type: 'quote_card',
+                csrf_token:   cfg.csrfToken,
+            }),
+        });
+        const data = await res.json();
+        if (data.ok || data.id) closeMediaRecModal();
+    } catch(e) {}
 }

@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['join_room'])) {
         $puStmt2 = $pdo->prepare('SELECT avatar_path FROM end_users WHERE id = ? LIMIT 1');
         $puStmt2->execute([(int)$_SESSION['end_user_id']]);
         $puAvatar = $puStmt2->fetchColumn();
-        if ($puAvatar && preg_match('#^/assets/uploads/#', $puAvatar) && file_exists(__DIR__ . $puAvatar)) {
+        if ($puAvatar && preg_match('#^/assets/avatars/#', $puAvatar) && file_exists(__DIR__ . $puAvatar)) {
             $bookingAvatarPath = $puAvatar;
         }
     }
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['join_room'])) {
             $avatarPath = null;
 
             // Use already-uploaded booking avatar if present and path is valid
-            if ($bookingAvatarPath && preg_match('#^/assets/uploads/[a-f0-9]+\.(jpg|jpeg|png|gif|webp)$#i', $bookingAvatarPath)
+            if ($bookingAvatarPath && preg_match('#^/assets/avatars/[a-f0-9]+\.(jpg|jpeg|png|gif|webp)$#i', $bookingAvatarPath)
                 && file_exists(__DIR__ . $bookingAvatarPath)) {
                 $avatarPath = $bookingAvatarPath;
             } else {
@@ -102,8 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['join_room'])) {
                     $extMap = ['image/jpeg'=>'jpg','image/png'=>'png','image/gif'=>'gif','image/webp'=>'webp'];
                     $ext  = $extMap[$mimeType] ?? 'bin';
                     $name = bin2hex(random_bytes(12)) . '.' . $ext;
-                    move_uploaded_file($file['tmp_name'], __DIR__ . '/assets/uploads/' . $name);
-                    $avatarPath = '/assets/uploads/' . $name;
+                    move_uploaded_file($file['tmp_name'], __DIR__ . '/assets/avatars/' . $name);
+                    $avatarPath = '/assets/avatars/' . $name;
                 }
             }
 
@@ -715,7 +715,7 @@ if ($token !== '' && !empty($_SESSION['end_user_id'])) {
       $prefillName        = $bookingPrefill ? ($bookingPrefill['guest_name']   ?? '') : '';
       $bookingAvatarPath  = $bookingPrefill ? ($bookingPrefill['guest_avatar'] ?? '') : '';
       // Only treat as a valid path if it's an uploaded file (not a legacy preset key)
-      if (!preg_match('#^/assets/uploads/#', $bookingAvatarPath)) $bookingAvatarPath = '';
+      if (!preg_match('#^/assets/avatars/#', $bookingAvatarPath)) $bookingAvatarPath = '';
       $bookingToken       = !empty($_GET['booking']) ? trim($_GET['booking']) : '';
 
       // Portal user overrides: use their account avatar and name

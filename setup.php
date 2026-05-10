@@ -361,13 +361,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === '4') {
                 $error = 'Photo must be a JPEG, PNG, GIF, or WEBP image under 5 MB.';
                 $step  = 4;
             } else {
-                $uploadsDir = __DIR__ . '/assets/uploads/';
+                $uploadsDir = __DIR__ . '/assets/avatars/';
                 if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0755, true);
                 $setupAvatarMimeExtMap = ['image/jpeg'=>'jpg','image/png'=>'png','image/gif'=>'gif','image/webp'=>'webp'];
                 $ext        = $setupAvatarMimeExtMap[$mime] ?? 'jpg';
                 $fname      = bin2hex(random_bytes(12)) . '.' . $ext;
                 move_uploaded_file($file['tmp_name'], $uploadsDir . $fname);
-                $avatarPath = '/assets/uploads/' . $fname;
+                $avatarPath = '/assets/avatars/' . $fname;
             }
         }
 

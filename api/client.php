@@ -198,8 +198,8 @@ if ($method === 'POST' && $action === 'update_profile') {
             $extMap = ['image/jpeg'=>'jpg','image/png'=>'png','image/gif'=>'gif','image/webp'=>'webp'];
             $ext    = $extMap[$mime] ?? 'jpg';
             $fname  = bin2hex(random_bytes(12)) . '.' . $ext;
-            move_uploaded_file($file['tmp_name'], __DIR__ . '/../assets/uploads/' . $fname);
-            $avatarPath = '/assets/uploads/' . $fname;
+            move_uploaded_file($file['tmp_name'], __DIR__ . '/../assets/avatars/' . $fname);
+            $avatarPath = '/assets/avatars/' . $fname;
             $pdo->prepare('UPDATE end_users SET avatar_path = ? WHERE id = ?')
                 ->execute([$avatarPath, $userId]);
         }

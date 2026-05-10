@@ -538,13 +538,15 @@ $inviteUrl          = $scheme . '://' . $_SERVER['HTTP_HOST'] . '/index.php?toke
 $sessionId        = (int)$session['id'];
 $bgPath           = $room['background_path'] ?? '';
 $bgMime           = '';
-if ($bgPath) {
+if ($bgPath && file_exists(__DIR__ . $bgPath)) {
     $stmtBgMime = $pdo->prepare(
         'SELECT mime_type FROM backgrounds WHERE file_path = ? AND practitioner_id = ? LIMIT 1'
     );
     $stmtBgMime->execute([$bgPath, $room['practitioner_id']]);
     $bgMimeRow = $stmtBgMime->fetch();
     $bgMime    = $bgMimeRow ? ($bgMimeRow['mime_type'] ?? '') : '';
+} elseif ($bgPath) {
+    $bgPath = '';
 }
 $bgPathSafe = $bgPath ? htmlspecialchars($bgPath) : '';
 
@@ -1202,6 +1204,23 @@ if (navigator.permissions) {
   color: rgba(245,200,66,0.75); text-decoration: none;
 }
 .mrw-amazon:hover { color: #f5c842; }
+
+/* ── Quote card widget ── */
+.quote-card-widget {
+  background: linear-gradient(135deg, #1a1040 0%, #0d0a1e 100%);
+  border: 1px solid rgba(124,106,247,0.22);
+  border-left: 3px solid rgba(124,106,247,0.55);
+  border-radius: 10px;
+  padding: 13px 16px;
+  width: 100%;
+  max-width: 45%;
+  margin-top: 4px;
+  display: inline-block;
+}
+.qcw-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(124,106,247,0.8); margin-bottom: 9px; }
+.qcw-body { font-size: 13px; color: #dddcf2; line-height: 1.65; font-style: italic; }
+.qcw-attrib { font-size: 11.5px; color: rgba(221,220,242,0.5); font-style: italic; margin-top: 8px; }
+.qcw-cat { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: rgba(124,106,247,0.12); color: #c5b8ff; border: 1px solid rgba(124,106,247,0.2); margin-top: 7px; }
 
 /* ── Media search result rows (inside modal) ── */
 .mrm-result-row {

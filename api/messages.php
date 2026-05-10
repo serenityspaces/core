@@ -141,8 +141,9 @@ if ($content === '') {
 $reqType     = $input['message_type'] ?? 'text';
 $messageType = 'text';
 if ($isPractitioner) {
-    if ($reqType === 'crisis')    $messageType = 'crisis';
-    if ($reqType === 'media_rec') $messageType = 'media_rec';
+    if ($reqType === 'crisis')     $messageType = 'crisis';
+    if ($reqType === 'media_rec')  $messageType = 'media_rec';
+    if ($reqType === 'quote_card') $messageType = 'quote_card';
 }
 
 $stmt = $pdo->prepare(
