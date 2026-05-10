@@ -1,0 +1,22 @@
+# ── Secrets & credentials ─────────────────────────────────────────
+db/config.php
+
+# ── Dependencies (install via Composer) ───────────────────────────
+vendor/
+lib/
+
+# ── Runtime storage (user-uploaded content) ───────────────────────
+storage/
+assets/uploads/
+assets/backgrounds/*/
+
+# ── OS & editor noise ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+
+# ── IDE files ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo

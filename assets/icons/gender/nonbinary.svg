@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Circle center -->
+  <circle cx="12" cy="12" r="6"/>
+  <!-- Arrow up (not diagonal) -->
+  <line x1="12" y1="6" x2="12" y2="1"/>
+  <polyline points="9,4 12,1 15,4"/>
+  <!-- Cross below -->
+  <line x1="12" y1="18" x2="12" y2="23"/>
+  <line x1="9" y1="21" x2="15" y2="21"/>
+</svg>

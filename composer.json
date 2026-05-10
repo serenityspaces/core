@@ -1,0 +1,16 @@
+{
+  "name": "serenityspaces/app",
+  "description": "Serenity Spaces — therapeutic conversation platform",
+  "type": "project",
+  "require": {
+    "php": ">=8.0",
+    "mpdf/mpdf": "^8.2"
+  },
+  "require-dev": {},
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

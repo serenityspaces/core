@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Game Centre - Checkers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg: #0f0f12;
+      --card-bg: #17171c;
+      --light-cell: #2a2d33;
+      --dark-cell:  #1f2228;
+      --accent-red: #ff5a52;
+      --accent-white: #e9eef4;
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.7);
+      --shadow: rgba(0,0,0,0.6);
+      --edge: rgba(255,255,255,0.12);
+      --gold: #ffd700;
+
+      --board-vignette: radial-gradient(140% 90% at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.0) 60%, rgba(0,0,0,0.35) 100%);
+      --board-weave: 
+        linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%) 0 0/12px 12px,
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%) 0 0/12px 12px,
+        linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%) 0 0/12px 12px,
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%) 0 0/12px 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body{
+      background: radial-gradient(1200px 600px at 30% -10%, #1b1730 0%, #0f0f12 60%) fixed;
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 28px 20px 60px;
+      gap: 20px;
+    }
+
+    .card{
+      background: color-mix(in srgb, var(--card-bg) 92%, #000 8%);
+      border-radius: 14px;
+      box-shadow: 0 14px 40px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
+      overflow: hidden;
+      width: fit-content;
+      min-width: 480px;
+      border: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .card-header, .card-footer{
+      padding: 16px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.00));
+    }
+    .card-header{ border-bottom: 1px solid rgba(255,255,255,0.12); }
+    .card-footer{ border-top: 1px solid rgba(255,255,255,0.12); }
+    .card-body{
+      padding: 18px 22px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .info-label{ font-size: 14px; color: var(--text); opacity: 0.95; }
+    .muted{ color: var(--muted); }
+    .player-label{
+      font-size: 16px;
+      letter-spacing: 0.2px;
+      font-weight: 700;
+      text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+    }
+
+    /* Waiting overlay */
+    .waiting{
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin: 12px 0;
+      opacity: .9;
+    }
+    .spinner{
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: rgba(255,255,255,0.9);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Board frame & texture */
+    .board-wrap{
+      position: relative;
+      padding: 14px;
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+        radial-gradient(120% 140% at 50% -20%, rgba(255,255,255,0.08), rgba(255,255,255,0) 60%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.14),
+        inset 0 -1px 0 rgba(255,255,255,0.03),
+        0 18px 40px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+
+    /* POV flip */
+    .flip #board { transform: rotate(180deg); }
+    .flip .piece { transform: rotate(180deg); }
+
+    #board{
+      position: relative;
+      display: grid;
+      grid-template: repeat(8, 64px) / repeat(8, 64px);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 20px 40px rgba(0,0,0,0.35);
+      background-image: var(--board-weave), var(--board-vignette);
+      background-blend-mode: overlay, normal;
+      transition: transform .3s ease;
+    }
+
+    /* Cells + ambient tile sheen */
+    .cell{
+      width: 64px; height: 64px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+      z-index: 0;
+    }
+    .light{
+      background:
+        linear-gradient(160deg, rgba(255,255,255,0.04), rgba(0,0,0,0.12)),
+        linear-gradient(0deg, rgba(255,255,255,0.04), rgba(255,255,255,0.00));
+      background-color: var(--light-cell);
+    }
+    .dark{
+      background:
+        linear-gradient(160deg, rgba(0,0,0,0.25), rgba(255,255,255,0.02)),
+        linear-gradient(0deg, rgba(255,255,255,0.02), rgba(0,0,0,0.00));
+      background-color: var(--dark-cell);
+    }
+
+    .dark::before{
+      content: "";
+      position: absolute;
+      top: -50%; left: -60%;
+      width: 220%; height: 200%;
+      background: linear-gradient(100deg,
+        transparent 25%,
+        rgba(255,255,255,0.12) 50%,
+        transparent 75%);
+      transform: translateX(-160%) rotate(10deg);
+      animation: tile-sheen 12s linear infinite;
+      animation-delay: var(--delay, 0s);
+      mix-blend-mode: screen;
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 20%;
+    }
+    @keyframes tile-sheen{
+      0%   { transform: translateX(-160%) rotate(10deg); }
+      100% { transform: translateX(160%)  rotate(10deg); }
+    }
+
+    /* Glassy pieces + sheens */
+    .piece{
+      width: 54px; height: 54px; margin: 5px auto;
+      border-radius: 50%;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      isolation: isolate;
+      z-index: 1;
+      box-shadow:
+        0 10px 18px rgba(0,0,0,0.55),
+        0 0 0 1px var(--edge),
+        inset 0 0 10px rgba(255,255,255,0.18),
+        inset 0 -10px 18px rgba(0,0,0,0.35);
+    }
+    .piece::before{
+      content:"";
+      position:absolute;
+      top: -40%; left: -50%;
+      width: 200%; height: 180%;
+      border-radius:50%;
+      background: linear-gradient(100deg,
+        transparent 20%,
+        rgba(255,255,255,0.22) 50%,
+        transparent 80%);
+      transform: translateX(-160%) rotate(10deg);
+      animation: sheen-slow 10s linear infinite;
+      mix-blend-mode: screen;
+      pointer-events:none;
+      z-index: 1;
+    }
+    @keyframes sheen-slow{
+      0%   { transform: translateX(-160%) rotate(10deg); }
+      100% { transform: translateX(160%)  rotate(10deg); }
+    }
+    .piece.mine::after{
+      content:"";
+      position:absolute;
+      top: -40%; left: -50%;
+      width: 200%; height: 180%;
+      border-radius:50%;
+      background: linear-gradient(100deg,
+        transparent 20%,
+        rgba(255,215,0,0.65) 50%,
+        transparent 80%);
+      transform: translateX(-160%) rotate(10deg);
+      opacity: 0;
+      mix-blend-mode: screen;
+      pointer-events:none;
+      z-index: 2;
+    }
+    .piece.mine:hover::after{
+      animation: sheen-fast 2.2s linear infinite;
+      opacity: 1;
+    }
+    @keyframes sheen-fast{
+      0%   { transform: translateX(-160%) rotate(10deg); }
+      100% { transform: translateX(160%)  rotate(10deg); }
+    }
+
+    .p1{
+      background-color: color-mix(in srgb, var(--accent-red) 70%, #ffffff 30%);
+      box-shadow:
+        0 10px 18px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(255,90,82,0.45),
+        0 0 28px rgba(255,90,82,0.25),
+        inset 0 0 10px rgba(255,160,150,0.25),
+        inset 0 -10px 18px rgba(120,0,0,0.5);
+    }
+    .p2{
+      background-color: color-mix(in srgb, var(--accent-white) 70%, #c6d6ff 30%);
+      box-shadow:
+        0 10px 18px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(230,238,244,0.40),
+        0 0 26px rgba(190,220,255,0.22),
+        inset 0 0 10px rgba(255,255,255,0.33),
+        inset 0 -10px 18px rgba(0,20,60,0.35);
+    }
+
+    /* End-of-match overlay */
+    .overlay{
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      z-index: 5;
+    }
+    .overlay .panel{
+      background: color-mix(in srgb, #1a1a1f 85%, #000 15%);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 16px;
+      padding: 24px 22px;
+      min-width: 320px;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+      text-align: center;
+    }
+    .overlay .title{
+      font-size: 28px; font-weight: 900; letter-spacing: .3px;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 10px rgba(255,215,0,.35);
+    }
+    .overlay .subtitle{ opacity: .9; margin-bottom: 18px; }
+    .cta-row{ display: flex; gap: 10px; justify-content: center; }
+    .cta-row button{
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.32);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 16px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease, background .2s ease;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .cta-row button:hover{ transform: translateY(-1px); }
+
+    /* Controls */
+    #controls{
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    button{
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.32);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 16px;
+      font-weight: 700;
+      letter-spacing: .2px;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease, background .2s ease;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    button:hover{
+      transform: translateY(-1px);
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
+      box-shadow: 0 12px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+    button:active{ transform: translateY(0); }
+
+    /* Force UI text to white for crisp contrast */
+    .card, .card * { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="card">
+    <div class="card-body">
+      <div class="waiting" id="waiting">
+        <div class="spinner"></div>
+        <div class="info-label">Waiting for Opponent…</div>
+      </div>
+
+      <div class="player-label" id="top-label">…</div>
+
+      <div class="board-wrap" id="board-wrap">
+        <div id="board" aria-label="Checkers board" role="grid"></div>
+      </div>
+
+      <div class="player-label" id="bottom-label">…</div>
+
+      <div id="controls">
+        <button id="start-over" title="Reset the board to the initial position">Start Over</button>
+        <button id="resign" title="Concede the game">Resign</button>
+      </div>
+    </div>
+
+    <div id="turn-status-bar" style="padding:6px 16px;font-size:12px;color:rgba(255,255,255,0.6);text-align:right;">
+      <span id="turn-status">Waiting for Opponent</span>
+    </div>
+
+    <!-- End-of-match overlay -->
+    <div class="overlay" id="overlay">
+      <div class="panel">
+        <div class="title" id="overlay-title">You’ve Won!</div>
+        <div class="subtitle" id="overlay-sub">Play again, gorgeous?</div>
+        <div class="cta-row">
+          <button id="play-again">Play Again</button>
+          <button id="leave">Leave</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+ <script>
+  // ——— Params ———
+  const params = new URLSearchParams(location.search);
+  const raw    = params.get('lobby') || params.get('code') || 'demo';
+  const player = Math.max(1, Math.min(2, parseInt(params.get('player'), 10) || 1)); // 1=Red, 2=White
+  const user   = parseInt(params.get('user'), 10) || 1001;
+  const gameId = parseInt(params.get('game'), 10) || 0;
+
+  const url = new URL(window.location.href);
+  const path = url.pathname;
+
+  // Find the anchor
+  const idx = path.indexOf("/games/");
+  if (idx === -1) throw new Error("No /games/ segment in path");
+
+  // Base up to /games/
+  const base = path.slice(0, idx);
+  const LIST_URL = `${base}/list_lobbies.php?game=${gameId}`;
+
+  // ——— Match/runtime state ———
+  let lastSeq = 0;
+  let board   = [];
+  let opponentUserId = null;
+  let bothJoined = false;
+  let yourTurn = (player === 1); // Red starts
+  let youRequestedRematch = false;
+  let oppRequestedRematch = false;
+  let gameOver = false;
+
+  // ——— UI refs ———
+  const topLabel     = document.getElementById('top-label');
+  const bottomLabel  = document.getElementById('bottom-label');
+  const boardEl      = document.getElementById('board');
+  const boardWrap    = document.getElementById('board-wrap');
+  const startBtn     = document.getElementById('start-over');
+  const resignBtn    = document.getElementById('resign');
+  const turnStatus   = document.getElementById('turn-status');
+  const waitingUI    = document.getElementById('waiting');
+  const overlay      = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlaySub   = document.getElementById('overlay-sub');
+  const playAgainBtn = document.getElementById('play-again');
+  const leaveBtn     = document.getElementById('leave');
+
+  // lobby/user labels removed from UI
+
+  // POV: flip board when you're Player 2 so YOU are always bottom
+  if (player === 2) boardWrap.classList.add('flip');
+
+  // ——— Build board grid ———
+  for (let r=0; r<8; r++){
+    for (let c=0; c<8; c++){
+      const cell = document.createElement('div');
+      cell.id = `cell-${r}-${c}`;
+      cell.className = 'cell ' + ((r+c)%2 ? 'dark' : 'light');
+      const delay = ((r * 8 + c) % 12) * 0.25;
+      cell.style.setProperty('--delay', `${delay}s`);
+      cell.setAttribute('role','gridcell');
+      cell.setAttribute('aria-label', `row ${r+1}, col ${c+1}`);
+      boardEl.appendChild(cell);
+    }
+  }
+
+  // Click on empty/destination cells to move
+  boardEl.addEventListener('click', e => {
+    if(!e.target.classList.contains('cell')) return;
+    const [_, r, c] = e.target.id.split('-').map(Number);
+    tryMove(r,c);
+  });
+
+  // ——— Draw + selection ———
+  function drawBoard(){
+    for (let r=0; r<8; r++){
+      for (let c=0; c<8; c++){
+        const el = document.getElementById(`cell-${r}-${c}`);
+        el.innerHTML = '';
+        if (board[r][c]){
+          const p = document.createElement('div');
+          p.className = `piece p${board[r][c]}`;
+          if (board[r][c] === player) p.classList.add('mine');
+          p.dataset.r = r; p.dataset.c = c;
+          p.onclick = () => selectPiece(r,c);
+          el.appendChild(p);
+        }
+      }
+    }
+    updateLabels();
+    updateTurnStatus();
+  }
+
+  let selected = null;
+  function selectPiece(r,c){
+    if (gameOver || !bothJoined || !yourTurn) return;
+    if (board[r][c] !== player) return;
+    selected = {r,c};
+  }
+
+  function tryMove(toR,toC){
+    if (!selected || gameOver || !bothJoined || !yourTurn) return;
+    const {r:fr,c:fc} = selected;
+    const dr = toR - fr, dc = toC - fc;
+
+    const isEmpty = (board[toR]?.[toC] === 0);
+    const midR = fr + dr/2, midC = fc + dc/2;
+
+    const isSimpleStep = (Math.abs(dr) === 1 && Math.abs(dc) === 1 && isEmpty);
+    const isCapture = (Math.abs(dr) === 2 && Math.abs(dc) === 2 && board[midR]?.[midC] && isEmpty);
+
+    if (!isSimpleStep && !isCapture) { selected = null; return; }
+
+    // Local move
+    board[toR][toC] = player;
+    board[fr][fc]   = 0;
+    if (isCapture) board[midR][midC] = 0;
+
+    selected = null;
+    yourTurn = false;
+    drawBoard();
+    checkGameEnd('move');
+
+    // Report (fire & forget)
+    const mv = {type:'move', user_id:user, from:{r:fr,c:fc}, to:{r:toR,c:toC}};
+    apiPost(`${base}/api/moves.php`, { lobby_id: raw, user_id: user, payload: mv }).catch(()=>{});
+    apiPost(`${base}/api/state.php`, { lobby_id: raw, user_id: user, state: board }).catch(()=>{});
+  }
+
+  // ——— Labels & footer status ———
+  function updateLabels(){
+    const flat = board.flat();
+    const redCount   = flat.filter(x=>x===1).length;
+    const whiteCount = flat.filter(x=>x===2).length;
+    const redCaptures   = 12 - whiteCount;
+    const whiteCaptures = 12 - redCount;
+
+    if (player === 1){
+      topLabel.textContent    = `White (Opponent) — Captures: ${whiteCaptures}`;
+      bottomLabel.textContent = `Red (You) — Captures: ${redCaptures}`;
+    } else {
+      topLabel.textContent    = `Red (Opponent) — Captures: ${redCaptures}`;
+      bottomLabel.textContent = `White (You) — Captures: ${whiteCaptures}`;
+    }
+  }
+  function updateTurnStatus(){
+    if (!bothJoined){
+      turnStatus.textContent = 'Waiting for Opponent';
+    } else if (yourTurn){
+      turnStatus.textContent = 'Your turn.';
+    } else {
+      turnStatus.textContent = 'Waiting for Opponent';
+    }
+  }
+
+  // ——— Controls ———
+  startBtn.onclick = async ()=>{
+    if (!bothJoined || gameOver) return;
+    youRequestedRematch = true;
+    await sendControl('play-again-request', { player });
+    maybeRestart();
+  };
+  resignBtn.onclick = async ()=>{
+    if (gameOver) return;
+    await sendControl('resign', { player });
+    finishMatch(false, 'Resigned');
+  };
+  playAgainBtn.onclick = async ()=>{
+    youRequestedRematch = true;
+    await sendControl('play-again-request', { player });
+    maybeRestart();
+  };
+  leaveBtn.onclick = async ()=>{
+    await sendControl('leave', { player });
+    tryCloseLobby(); // best-effort
+    overlay.style.display = 'flex';
+    overlayTitle.textContent = 'Lobby Closed';
+    overlaySub.textContent = 'Thanks for playing!';
+    disableBoard();
+  };
+
+  // ——— API helpers ———
+  async function apiGet(path){
+    const url = path + (path.includes('?') ? '&' : '?') + `user=${user}`;
+    const res = await fetch(url);
+    return res.ok ? res.json() : {};
+  }
+  async function apiPost(path,data){
+    const res = await fetch(path,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('network');
+    return res.json();
+  }
+
+  // Control helpers
+  async function sendControl(type, extra={}){
+    const payload = Object.assign({type}, extra);
+    try { await apiPost(`${base}/api/moves.php`, { lobby_id: raw, user_id: user, payload }); } catch {}
+  }
+  async function recordResult(result, reason='completed', score=0){
+    try {
+      await apiPost(`${base}/api/result.php`, { lobby_id: raw, user_id: user, result, reason, score });
+    } catch {
+      sendControl('result', { result, reason, score });
+    }
+  }
+  async function tryCloseLobby(){
+    try { await apiPost(`${base}/api/lobby.php`, { action:'close', lobby_id: raw, user_id: user }); } catch {}
+  }
+
+  // ——— Initial board ———
+  function initBoard(){
+    const b = Array.from({length:8}, ()=>Array(8).fill(0));
+    for (let r=0;r<3;r++) for (let c=0;c<8;c++) if ((r+c)%2) b[r][c]=2; // top: White (P2)
+    for (let r=5;r<8;r++) for (let c=0;c<8;c++) if ((r+c)%2) b[r][c]=1; // bottom: Red (P1)
+    return b;
+  }
+  function disableBoard(){ boardEl.style.pointerEvents = 'none'; }
+  function enableBoard(){ boardEl.style.pointerEvents = 'auto'; }
+
+  // ——— Match flow ———
+  function setWaiting(on){
+    waitingUI.style.display = on ? 'flex' : 'none';
+    document.querySelector('.board-wrap').style.display = on ? 'none' : 'block';
+    document.getElementById('top-label').style.display = on ? 'none' : 'block';
+    document.getElementById('bottom-label').style.display = on ? 'none' : 'block';
+  }
+
+  function startMatch(){
+    bothJoined = true;
+    setWaiting(false);
+    yourTurn = (player === 1);
+    updateTurnStatus();
+    enableBoard();
+  }
+
+  function startMatchIfReady(){
+    if (bothJoined) return;
+    if (opponentUserId && opponentUserId !== user){
+      startMatch();
+    }
+  }
+
+  function checkGameEnd(){
+    const flat = board.flat();
+    const reds   = flat.filter(x=>x===1).length;
+    const whites = flat.filter(x=>x===2).length;
+    if (reds === 0 || whites === 0){
+      const youWon = (player === 1 && whites===0) || (player === 2 && reds===0);
+      finishMatch(youWon, 'All pieces captured');
+    }
+  }
+
+  async function finishMatch(youWon, reason){
+    if (gameOver) return;
+    gameOver = true;
+    disableBoard();
+    overlay.style.display = 'flex';
+
+    const isResignation = /resign/i.test(String(reason||''));
+
+    if (isResignation && !youWon){
+      overlayTitle.textContent = "You Resigned";
+      overlaySub.textContent   = "Returning to lobbies…";
+      playAgainBtn.style.display = 'none';
+      leaveBtn.style.display     = 'none';
+      setTimeout(()=>{ try { window.parent.postMessage({ type: "activity_close", lobby: raw }, "*"); } catch {}
+      location.href = LIST_URL; }, 3000);
+    } else if (isResignation && youWon){
+      overlayTitle.textContent = "You’ve Won!";
+      overlaySub.textContent   = "Opponent resigned.";
+      playAgainBtn.style.display = 'none';
+      leaveBtn.onclick = ()=>{ try { window.parent.postMessage({ type: "activity_close", lobby: raw }, "*"); } catch {}
+      location.href = LIST_URL; };
+    } else {
+      overlayTitle.textContent = youWon ? "You’ve Won!" : "Better luck next time :(";
+      overlaySub.textContent   = reason || '';
+    }
+
+    await recordResult(youWon ? 'win' : 'loss', reason, 0);
+    await sendControl('match-end', { youWon, reason });
+  }
+
+  function resetForRematch(){
+    board = initBoard();
+    lastSeq = 0;
+    gameOver = false;
+    youRequestedRematch = false;
+    oppRequestedRematch = false;
+    yourTurn = (player === 1);
+    overlay.style.display = 'none';
+    setWaiting(false);
+    drawBoard();
+    apiPost(`${base}/api/state.php`, { lobby_id: raw, user_id: user, state: board }).catch(()=>{});
+  }
+
+  function maybeRestart(){
+    if (youRequestedRematch && oppRequestedRematch){
+      (async ()=>{
+        try { await apiPost(`${base}/api/restart.php`, { lobby_id: raw, user_id: user }); } catch {}
+        await sendControl('restart', {});
+        resetForRematch();
+      })();
+    }
+  }
+
+  // ——— Status fallback ———
+  async function pollLobbyStatus(){
+    try{
+      const s = await apiGet(`${base}/api/lobby.php?action=status&lobby_id=${raw}`);
+      if (s && (s.status === 'active' || s.status === 'ongoing') && !bothJoined){
+        startMatch();
+      }
+      if (s && s.status === 'over' && !gameOver){
+        finishMatch(false, 'Lobby closed');
+      }
+    } catch {}
+  }
+
+  // ——— Init + poll ———
+  (async ()=>{
+    // Load or init state
+    try {
+      const s = await apiGet(`${base}/api/state.php?lobby=${raw}`);
+      board = (s && s.state && Array.isArray(s.state)) ? s.state : initBoard();
+      if (!s || !s.state) await apiPost(`${base}/api/state.php`,{ lobby_id:raw, user_id:user, state:board });
+    } catch {
+      board = initBoard();
+    }
+    drawBoard();
+
+    // Tell server we joined (server will also broadcast "join" and maybe "start")
+    try {
+      await apiPost(`${base}/api/lobby.php`, { action:'join', lobby_id: raw, user_id: user });
+    } catch {}
+
+    // Start in waiting mode until we detect opponent
+    setWaiting(true);
+    disableBoard();
+
+    // Seed moves
+    try {
+      const initMoves = await apiGet(`${base}/api/moves.php?lobby=${raw}&lastSeq=0`);
+      if (Array.isArray(initMoves) && initMoves.length) {
+        lastSeq = initMoves[initMoves.length-1].sequence || 0;
+        for (const m of initMoves){
+          const p = m.payload || {};
+          if (p.type === 'join' && m.user_id !== user) opponentUserId = m.user_id;
+        }
+      }
+    } catch {}
+
+    startMatchIfReady();
+
+    // Poll opponent moves
+    setInterval(async ()=>{
+      try{
+        const mv = await apiGet(`${base}/api/moves.php?lobby=${raw}&lastSeq=${lastSeq}`);
+        if (!Array.isArray(mv)) return;
+        for (const m of mv){
+          lastSeq = m.sequence || lastSeq;
+          const {payload, user_id} = m;
+          const p = payload || {};
+          if (user_id === undefined) continue;
+
+          if (!opponentUserId && user_id !== user) opponentUserId = user_id;
+
+          switch (p.type){
+            case 'start':
+              // Server signaled the match is ready — unlock UI
+              startMatch();
+              break;
+
+            case 'join':
+              startMatchIfReady();
+              break;
+
+            case 'move':
+              if (user_id !== user){
+                const {from, to} = p;
+                const opponentPiece = (player === 1) ? 2 : 1;
+                board[to.r][to.c] = opponentPiece;
+                board[from.r][from.c] = 0;
+                if (Math.abs(to.r - from.r) === 2 && Math.abs(to.c - from.c) === 2){
+                  board[(to.r + from.r)/2][(to.c + from.c)/2] = 0;
+                }
+                yourTurn = true;
+                drawBoard();
+                checkGameEnd('opponent-move');
+              }
+              break;
+
+            case 'resign':
+              if (user_id !== user) finishMatch(true, 'Opponent resigned');
+              break;
+
+            case 'leave':
+              if (user_id !== user){
+                finishMatch(true, 'Opponent left');
+                tryCloseLobby();
+              }
+              break;
+
+            case 'play-again-request':
+              if (user_id !== user){
+                oppRequestedRematch = true;
+                maybeRestart();
+              }
+              break;
+
+            case 'restart':
+              resetForRematch();
+              break;
+
+            case 'match-end':
+              // Opponent declared end; we already handle our overlay locally
+              break;
+
+            default:
+              if (p.from && p.to && user_id !== user){
+                const opponentPiece = (player === 1) ? 2 : 1;
+                board[p.to.r][p.to.c] = opponentPiece;
+                board[p.from.r][p.from.c] = 0;
+                if (Math.abs(p.to.r - p.from.r) === 2){
+                  board[(p.to.r + p.from.r)/2][(p.to.c + p.from.c)/2] = 0;
+                }
+                yourTurn = true;
+                drawBoard();
+                checkGameEnd('opponent-move');
+              }
+              break;
+          }
+        }
+      } catch {}
+    }, 900);
+
+    // Poll lobby status as a safety net
+    setInterval(pollLobbyStatus, 1500);
+  })();
+</script>
+</body>
+</html>

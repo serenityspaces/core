@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Question mark -->
+  <path d="M9 9a3 3 0 1 1 4.5 2.6C12 13 12 13.5 12 14.5"/>
+  <circle cx="12" cy="18" r="0.5" fill="currentColor"/>
+  <!-- Outer circle -->
+  <circle cx="12" cy="12" r="10"/>
+</svg>

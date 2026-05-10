@@ -1,0 +1,18 @@
+{
+  "purpose": "Coverage page copy for SerenitySpaces practitioner types",
+  "count": 12,
+  "files": [
+    "life_coaching.md",
+    "peer_support.md",
+    "philosophical_counseling.md",
+    "mindfulness.md",
+    "grief_support.md",
+    "addiction_recovery.md",
+    "trauma_informed.md",
+    "pastoral_care.md",
+    "spiritual_direction.md",
+    "licensed_therapy.md",
+    "cbt.md",
+    "dbt.md"
+  ]
+}

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Game Centre - Paint with Friends</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg: #0f0f12;
+      --card-bg: #17171c;
+      --light-cell: #2a2d33;
+      --dark-cell:  #1f2228;
+      --accent-red: #ff5a52;
+      --accent-white: #e9eef4;
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.7);
+      --shadow: rgba(0,0,0,0.6);
+      --edge: rgba(255,255,255,0.12);
+      --gold: #ffd700;
+
+      --board-vignette: radial-gradient(140% 90% at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.0) 60%, rgba(0,0,0,0.35) 100%);
+      --board-weave:
+        linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%) 0 0/12px 12px,
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%) 0 0/12px 12px,
+        linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%) 0 0/12px 12px,
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%) 0 0/12px 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body{
+      background: radial-gradient(1200px 600px at 30% -10%, #1b1730 0%, #0f0f12 60%) fixed;
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 28px 20px 60px;
+    }
+
+    .card{
+      background: color-mix(in srgb, var(--card-bg) 92%, #000 8%);
+      border-radius: 14px;
+      box-shadow: 0 14px 40px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
+      overflow: hidden;
+      width: min(92vw, 980px);
+      border: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .card-header, .card-footer{
+      padding: 16px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.00));
+    }
+    .card-header{ border-bottom: 1px solid rgba(255,255,255,0.12); gap: 12px; }
+    .card-footer{ border-top: 1px solid rgba(255,255,255,0.12); }
+    .info-label{ font-size: 14px; opacity: 0.95; }
+    .muted{ color: var(--muted); }
+
+    .card-body{
+      padding: 18px 22px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Partner left strip */
+    .notice{
+      display: none;
+      background: linear-gradient(180deg, rgba(255,215,0,0.12), rgba(255,215,0,0.02));
+      border: 1px solid rgba(255,215,0,0.35);
+      color: #ffe9a6;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    /* Waiting cover that hides UI */
+    .waiting-cover{
+      position: absolute; inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(3px);
+      z-index: 6;
+    }
+    .waiting-panel{
+      background: color-mix(in srgb, #1a1a1f 85%, #000 15%);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 14px;
+      padding: 20px 22px;
+      min-width: 320px;
+      max-width: min(92vw, 560px);
+      text-align: center;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .spinner{
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: rgba(255,255,255,0.9);
+      animation: spin 1s linear infinite;
+      display: inline-block; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Canvas frame */
+    .canvas-wrap{
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+        radial-gradient(120% 140% at 50% -20%, rgba(255,255,255,0.08), rgba(255,255,255,0) 60%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.14),
+        inset 0 -1px 0 rgba(255,255,255,0.03),
+        0 18px 40px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .canvas-back{
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.15);
+      background-image: var(--board-weave), var(--board-vignette);
+      background-blend-mode: overlay, normal;
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 20px 40px rgba(0,0,0,0.35);
+    }
+    canvas{
+      display:block;
+      width: 100%;
+      height: auto;          /* height scales from aspect */
+      background: #121216;
+      image-rendering: optimizeQuality;
+      touch-action: none;    /* prevent scroll while drawing */
+    }
+
+    /* Controls — cleaner, labeled */
+    #controls{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .control{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 10px;
+      padding: 8px 10px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+    .label{ font-size: 12px; opacity: .9; letter-spacing: .2px; }
+
+    button, input[type="color"], input[type="range"]{
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.32);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 14px;
+      font-weight: 700;
+      letter-spacing: .2px;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease, background .2s ease;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    button:hover, input[type="color"]:hover{
+      transform: translateY(-1px);
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
+      box-shadow: 0 12px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+    button:active{ transform: translateY(0); }
+    input[type="color"]{ width: 44px; height: 36px; padding: 0; border-radius: 8px; }
+    input[type="range"]{ width: 160px; padding: 6px 10px; }
+
+    .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      padding: 8px 10px; border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.18);
+      font-size: 12px;
+    }
+
+    /* Lobby Code UI in the waiting overlay */
+    .invite-row{
+      display: none;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(255,255,255,0.12);
+    }
+    .invite-title{
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      letter-spacing: .2px;
+    }
+    .invite-flex{
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .code-chip{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font: 700 14px/1.1 ui-sans-serif, system-ui, -apple-system;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.2);
+      letter-spacing: 0.8px;
+      user-select: all;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .copy-btn{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.28);
+      background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+      font-weight: 800;
+      letter-spacing: .3px;
+      cursor: pointer;
+    }
+    .copy-btn .ico{ font-size: 16px; line-height: 1; display: inline-block; transform: translateY(-0.5px); }
+    .copy-btn.success{ outline: 2px solid rgba(0,200,140,.55); transition: outline .2s ease; }
+    /* Floating painter tag */
+    .painter-tag {
+      position: fixed; pointer-events: none; z-index: 50;
+      padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      opacity: 0; transition: opacity 0.2s; white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5); transform: translate(-50%, -130%);
+    }
+    .painter-tag.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="card-body">
+      <div class="notice" id="partnerLeft">
+        <span>Partner left the session.</span>
+        <button id="leave2">Leave</button>
+      </div>
+
+      <div class="canvas-wrap">
+        <div class="canvas-back">
+          <canvas id="paint"></canvas>
+        </div>
+      </div>
+
+      <div id="controls">
+        <div class="control">
+          <span class="label">Image</span>
+          <button id="upload-btn" title="Upload Background">Upload</button>
+          <input id="upload-input" type="file" accept="image/*" hidden />
+        </div>
+
+        <div class="control">
+          <span class="label">Color</span>
+          <input id="color" type="color" value="#ff5a52" title="Brush Color"/>
+        </div>
+
+        <div class="control">
+          <span class="label">Brush Size</span>
+          <input id="size" type="range" min="2" max="48" value="10" title="Brush Size"/>
+          <span class="pill"><span id="sizeVal">10</span> px</span>
+        </div>
+
+        <div class="control">
+          <span class="label">Zoom</span>
+          <button id="zoomOut" title="Zoom Out">−</button>
+          <button id="zoomIn" title="Zoom In">+</button>
+          <button id="zoomReset" title="Reset Zoom">100%</button>
+          <span class="pill" id="zoomLabel">100%</span>
+        </div>
+
+        <div class="control">
+          <span class="label">Edit</span>
+          <button id="undo" title="Undo last stroke">Undo</button>
+          <button id="clear" title="Clear strokes">Clear</button>
+          <button id="download" title="Download PNG">Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status-bar" style="padding:6px 16px;font-size:12px;color:rgba(255,255,255,0.6);text-align:right;">
+      <span id="status">Waiting for Opponent</span>
+    </div>
+
+    <!-- Waiting overlay (stateful) -->
+    <div class="waiting-cover" id="waitingCover">
+      <div class="waiting-panel">
+        <div>
+          <span class="spinner" id="waitingSpinner"></span>
+          <span class="info-label" id="waitingMsg">Waiting for Opponent…</span>
+        </div>
+
+        <div style="margin-top:12px;">
+          <button id="leave3">Leave</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ======================== Params / Base Path ======================== */
+const params = new URLSearchParams(location.search);
+const raw    = params.get('lobby') || params.get('code') || 'demo';
+const user   = parseInt(params.get('user'), 10) || 1001;
+const gameId = parseInt(params.get('game'), 10) || 0;
+
+const url  = new URL(window.location.href);
+const path = url.pathname;
+const idx  = path.indexOf("/games/");
+if (idx === -1) throw new Error("No /games/ segment in path");
+const base = path.slice(0, idx);
+const LIST_URL = `${base}/list_lobbies.php?game=${gameId}`;
+
+/* ======================== Elements ======================== */
+const statusEl   = document.getElementById('status');
+
+const partnerLeft   = document.getElementById('partnerLeft');
+const waitingCover  = document.getElementById('waitingCover');
+const waitingMsg    = document.getElementById('waitingMsg');
+const waitingSpinner= document.getElementById('waitingSpinner');
+// inviteRow/lobbyCode removed from UI
+
+const canvas = document.getElementById('paint');
+const ctx    = canvas.getContext('2d');
+
+const uploadBtn   = document.getElementById('upload-btn');
+const uploadInput = document.getElementById('upload-input');
+const clearBtn    = document.getElementById('clear');
+const undoBtn     = document.getElementById('undo');
+const dlBtn       = document.getElementById('download');
+const leaveBtn2   = document.getElementById('leave2');
+const leaveBtn3   = document.getElementById('leave3');
+const colorInput  = document.getElementById('color');
+const sizeInput   = document.getElementById('size');
+const sizeVal     = document.getElementById('sizeVal');
+
+const zoomInBtn   = document.getElementById('zoomIn');
+const zoomOutBtn  = document.getElementById('zoomOut');
+const zoomResetBtn= document.getElementById('zoomReset');
+const zoomLabel   = document.getElementById('zoomLabel');
+
+// lobby/user labels and clipboard removed from UI
+
+/* ======================== API Helpers ======================== */
+async function apiGet(path){
+  const u = path + (path.includes('?') ? '&' : '?') + `user=${user}`;
+  const res = await fetch(u);
+  return res.ok ? res.json() : {};
+}
+async function apiPost(path,data){
+  const res = await fetch(path,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+  if (!res.ok) throw new Error('network');
+  return res.json();
+}
+async function sendControl(type, extra={}){
+  const payload = Object.assign({type}, extra);
+  try { await apiPost(`${base}/api/moves.php`, { lobby_id: raw, user_id: user, payload }); } catch {}
+}
+
+/* ======================== Session/State ======================== */
+let lastSeq   = 0;
+let bothJoined = false;
+let opponentUserId = null;
+
+let state = { baseW: 1024, baseH: 768, bgDataUrl: null };
+let strokes = []; // vector strokes (base coords)
+const myId = ()=> String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+
+/* === Line-art extraction === */
+let lineMaskCanvas = null; // only the dark pixels from the BG
+let lineMaskReady  = false;
+const LINE_THRESH  = 60;   // 0..255: lower = darker-only, adjust if needed
+
+function hexToRGB(hex){
+  const h = hex.replace('#','');
+  const v = parseInt(h.length===3 ? h.split('').map(c=>c+c).join('') : h, 16);
+  return { r:(v>>16)&255, g:(v>>8)&255, b:v&255 };
+}
+function isNearBlack(hex){
+  const {r,g,b} = hexToRGB(hex);
+  // perceived luminance (sRGB)
+  const L = 0.2126*r + 0.7152*g + 0.0722*b;
+  return L <= 40; // treat <=40 as ink (on top)
+}
+function buildLineMask(imgW, imgH, sourceImg){
+  lineMaskCanvas = document.createElement('canvas');
+  lineMaskCanvas.width  = imgW;
+  lineMaskCanvas.height = imgH;
+  const lctx = lineMaskCanvas.getContext('2d');
+  lctx.drawImage(sourceImg, 0, 0, imgW, imgH);
+  const data = lctx.getImageData(0,0,imgW,imgH);
+  const d = data.data;
+  for(let i=0; i<d.length; i+=4){
+    const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+    // Skip fully transparent pixels (rare for jpegs)
+    if (a === 0) { continue; }
+    const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+    if (lum <= LINE_THRESH){
+      // keep as near-black line (force to opaque black for crispness)
+      d[i] = d[i+1] = d[i+2] = 0;
+      d[i+3] = 255;
+    } else {
+      // remove light areas so color can show underneath
+      d[i+3] = 0;
+    }
+  }
+  lctx.putImageData(data, 0, 0);
+  lineMaskReady = true;
+}
+
+/* ======================== Canvas sizing & zoom ======================== */
+let viewScale = 1;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4.0;
+function setZoom(z){
+  viewScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+  zoomLabel.textContent = Math.round(viewScale*100) + '%';
+  redraw();
+}
+zoomInBtn.onclick    = ()=> setZoom(viewScale*1.2);
+zoomOutBtn.onclick   = ()=> setZoom(viewScale/1.2);
+zoomResetBtn.onclick = ()=> setZoom(1);
+
+function fitCanvasToContainer(){
+  const wrapW = document.querySelector('.canvas-back').clientWidth;
+  const scale = wrapW / state.baseW;
+  const targetW = Math.max(1, Math.round(state.baseW * scale));
+  const targetH = Math.max(1, Math.round(state.baseH * scale));
+  canvas.width  = targetW;
+  canvas.height = targetH;
+  redraw();
+}
+const ro = new ResizeObserver(fitCanvasToContainer);
+ro.observe(document.querySelector('.canvas-back'));
+
+/* ======================== Drawing ======================== */
+let isDrawing = false;
+let currentStroke = null;
+let bgImage = null;
+
+function setBg(dataUrl, w, h){
+  state.baseW = w; state.baseH = h; state.bgDataUrl = dataUrl;
+  bgImage = new Image();
+  bgImage.onload = ()=>{ buildLineMask(w, h, bgImage); fitCanvasToContainer(); redraw(); };
+  bgImage.src = dataUrl;
+}
+
+function scaleFactors(){
+  const sx = (canvas.width  / state.baseW) * viewScale;
+  const sy = (canvas.height / state.baseH) * viewScale;
+  return {sx, sy};
+}
+
+function toBaseCoords(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const sxNoZoom = (canvas.width  / state.baseW);
+  const syNoZoom = (canvas.height / state.baseH);
+  const bx = x / (sxNoZoom * viewScale);
+  const by = y / (syNoZoom * viewScale);
+  return {x: bx, y: by};
+}
+
+function drawStrokeOnCtx(targetCtx, s){
+  if (!s.points || s.points.length < 2) return;
+  const {sx, sy} = scaleFactors();
+  targetCtx.save();
+  targetCtx.lineCap = 'round';
+  targetCtx.lineJoin = 'round';
+  targetCtx.strokeStyle = s.color || '#ffffff';
+  const basePx = (canvas.width / state.baseW + canvas.height / state.baseH) / 2;
+  targetCtx.lineWidth = (s.size || 8) * basePx;
+  targetCtx.beginPath();
+  const p0 = s.points[0];
+  targetCtx.moveTo(p0.x * sx, p0.y * sy);
+  for(let i=1;i<s.points.length;i++){
+    const p = s.points[i];
+    targetCtx.lineTo(p.x * sx, p.y * sy);
+  }
+  targetCtx.stroke();
+  targetCtx.restore();
+}
+
+function redraw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const {sx, sy} = scaleFactors();
+
+  // Base fill so “paper” is white under colors
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+
+  // 1) Paint all NON-BLACK strokes (coloring) under the lines
+  for(const s of strokes){
+    if (!isNearBlack(s.color || '#000000')){
+      drawStrokeOnCtx(ctx, s);
+    }
+  }
+  if (currentStroke && !isNearBlack(currentStroke.color || '#000000')){
+    drawStrokeOnCtx(ctx, currentStroke);
+  }
+
+  // 2) Draw the line-art mask on top (when ready)
+  if (lineMaskReady && lineMaskCanvas){
+    ctx.save();
+    ctx.scale(sx, sy);
+    ctx.drawImage(lineMaskCanvas, 0, 0, state.baseW, state.baseH);
+    ctx.restore();
+  } else if (bgImage){
+    // Fallback: if mask not ready yet, just draw the original (still keeps outlines visible)
+    ctx.save();
+    ctx.scale(sx, sy);
+    ctx.drawImage(bgImage, 0, 0, state.baseW, state.baseH);
+    ctx.restore();
+  }
+
+  // 3) Paint BLACK/INK strokes above the lines for inking/detail
+  for(const s of strokes){
+    if (isNearBlack(s.color || '#000000')){
+      drawStrokeOnCtx(ctx, s);
+    }
+  }
+  if (currentStroke && isNearBlack(currentStroke.color || '#000000')){
+    drawStrokeOnCtx(ctx, currentStroke);
+  }
+}
+
+/* ======================== Painter Tags ======================== */
+const PAINTER_COLORS = ['#e8a94a','#7ab8e8','#b87ae8','#e87a7a','#7ae8b8','#e8e87a'];
+const painterTags = new Map();
+const painterHideTimers = new Map();
+function showPainterTag(uid, clientX, clientY, name) {
+    let tag = painterTags.get(uid);
+    if (!tag) {
+        tag = document.createElement('div');
+        tag.className = 'painter-tag';
+        const color = PAINTER_COLORS[uid % PAINTER_COLORS.length];
+        tag.style.color      = color;
+        tag.style.background = color.replace(/^#/, '') ? `${color}30` : 'rgba(255,255,255,0.15)';
+        tag.style.border     = `1px solid ${color}`;
+        tag.textContent      = name;
+        document.body.appendChild(tag);
+        painterTags.set(uid, tag);
+    }
+    tag.style.left = clientX + 'px';
+    tag.style.top  = clientY + 'px';
+    tag.classList.add('visible');
+    clearTimeout(painterHideTimers.get(uid));
+    painterHideTimers.set(uid, setTimeout(() => tag.classList.remove('visible'), 1000));
+}
+
+/* ======================== Input ======================== */
+function grabPoint(e){
+  const pt = e.touches ? {x:e.touches[0].clientX, y:e.touches[0].clientY}
+                       : {x:e.clientX, y:e.clientY};
+  return toBaseCoords(pt.x, pt.y);
+}
+
+function startDraw(e){
+  e.preventDefault();
+  isDrawing = true;
+  currentStroke = {
+    id: myId(), user_id: user,
+    color: colorInput.value,
+    size: parseInt(sizeInput.value,10) || 10,
+    points:[]
+  };
+  currentStroke.points.push(grabPoint(e));
+  redraw();
+}
+function moveDraw(e){
+  if (!isDrawing || !currentStroke) return;
+  currentStroke.points.push(grabPoint(e));
+  redraw();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  showPainterTag(user, cx, cy, 'Me');
+}
+async function endDraw(){
+  if (!isDrawing || !currentStroke) return;
+  isDrawing   = false;
+  strokes.push(currentStroke);
+  redraw();
+  const s = currentStroke; currentStroke = null;
+  sendControl('stroke', { stroke: s }).catch(()=>{});
+}
+
+canvas.addEventListener('pointerdown', startDraw, {passive:false});
+canvas.addEventListener('pointermove', moveDraw,  {passive:false});
+window.addEventListener('pointerup',   endDraw,    {passive:false});
+canvas.addEventListener('touchstart',  startDraw, {passive:false});
+canvas.addEventListener('touchmove',   moveDraw,  {passive:false});
+window.addEventListener('touchend',    endDraw,   {passive:false});
+
+/* ======================== Controls ======================== */
+sizeInput.addEventListener('input', ()=> sizeVal.textContent = sizeInput.value);
+
+uploadBtn.onclick = ()=> uploadInput.click();
+uploadInput.onchange = async (e)=>{
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    const dataUrl = reader.result;
+    const img = new Image();
+    img.onload = async ()=>{
+      setBg(dataUrl, img.naturalWidth, img.naturalHeight);
+      try {
+        await apiPost(`${base}/api/state.php`, { lobby_id: raw, user_id: user, state: { baseW: state.baseW, baseH: state.baseH, bgDataUrl: dataUrl }});
+      } catch {}
+      sendControl('set-bg', { baseW: state.baseW, baseH: state.baseH, bgDataUrl: dataUrl }).catch(()=>{});
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+};
+
+clearBtn.onclick = async ()=>{
+  strokes = [];
+  redraw();
+  sendControl('clear',{}).catch(()=>{});
+};
+
+undoBtn.onclick = async ()=>{
+  for (let i=strokes.length-1; i>=0; i--){
+    if (strokes[i].user_id === user){
+      const target = strokes[i];
+      strokes.splice(i,1);
+      redraw();
+      sendControl('undo', { id: target.id }).catch(()=>{});
+      break;
+    }
+  }
+};
+
+dlBtn.onclick = ()=>{
+  const a = document.createElement('a');
+  a.download = `paint-${raw}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+};
+
+/* ===== Leave flow (button + beacon on unload) ===== */
+function leaveFlow(){
+  sendControl('leave',{}).catch(()=>{});
+  try { apiPost(`${base}/api/lobby.php`, { action:'close', lobby_id: raw, user_id: user }); } catch {}
+  try { window.parent.postMessage({ type: "activity_close", lobby: raw }, "*"); } catch {}
+  location.href = LIST_URL;
+}
+function beaconLeave(){
+  try {
+    const payload = { lobby_id: raw, user_id: user, payload: { type: 'leave' } };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    navigator.sendBeacon?.(`${base}/api/moves.php`, blob);
+    const blob2 = new Blob([JSON.stringify({ action:'close', lobby_id: raw, user_id: user })], { type:'application/json' });
+    navigator.sendBeacon?.(`${base}/api/lobby.php`, blob2);
+  } catch {}
+}
+if (leaveBtn2) leaveBtn2.onclick = leaveFlow;
+leaveBtn3.onclick = leaveFlow;
+window.addEventListener('pagehide', beaconLeave);
+window.addEventListener('beforeunload', beaconLeave);
+
+/* ======================== Match/Collab Flow ======================== */
+/** setWaiting(mode): mode = 'waiting' | 'left' | null */
+function setWaiting(mode){
+  if (mode){
+    waitingCover.style.display = 'flex';
+    if (mode === 'waiting'){
+      waitingMsg.textContent = 'Waiting for Collaborators…';
+      waitingSpinner.style.display = 'inline-block';
+      if (statusEl) statusEl.textContent = 'Waiting';
+    } else { // left
+      waitingMsg.textContent = 'Partner left the session.  Please exit.';
+      waitingSpinner.style.display = 'none';
+      if (statusEl) statusEl.textContent = 'Partner left';
+    }
+  } else {
+    waitingCover.style.display = 'none';
+    if (statusEl) statusEl.textContent = 'Collaborating';
+  }
+}
+function ensureBothPresent(){
+  if (!bothJoined){
+    bothJoined = true;
+    setWaiting(null);
+  }
+}
+function onPartnerLeft(){
+  bothJoined = false;
+  opponentUserId = null;
+  partnerLeft.style.display = 'flex';
+  setWaiting('left');
+}
+
+/* ======================== Moves Polling ======================== */
+async function seedMoves(){
+  try {
+    const mv = await apiGet(`${base}/api/moves.php?lobby=${raw}&lastSeq=0`);
+    if (Array.isArray(mv) && mv.length){
+      lastSeq = mv[mv.length-1].sequence || 0;
+      for(const m of mv){
+        const {payload, user_id} = m;
+        if (!payload) continue;
+
+        if (user_id !== user && !opponentUserId) opponentUserId = user_id;
+
+        switch(payload.type){
+          case 'stroke': if (payload.stroke) strokes.push(payload.stroke); break;
+          case 'undo':   /* historical undo */ break;
+          case 'clear':  strokes = []; break;
+          case 'set-bg':
+            if (payload.bgDataUrl && payload.baseW && payload.baseH){
+              setBg(payload.bgDataUrl, payload.baseW, payload.baseH);
+            }
+            break;
+          // ignore historical leaves/joins for unlock; live poll will decide
+        }
+      }
+      redraw();
+    }
+  } catch {}
+}
+
+async function pollMoves(){
+  try{
+    const mv = await apiGet(`${base}/api/moves.php?lobby=${raw}&lastSeq=${lastSeq}`);
+    if (!Array.isArray(mv)) return;
+    for(const m of mv){
+      lastSeq = m.sequence || lastSeq;
+      const {payload, user_id} = m;
+      if (!payload) continue;
+
+      if (user_id !== user && !opponentUserId) opponentUserId = user_id;
+
+      switch(payload.type){
+        case 'join':
+          if (user_id !== user){ ensureBothPresent(); }
+          break;
+
+        case 'stroke':
+          if (payload.stroke){ strokes.push(payload.stroke); redraw(); }
+          if (user_id !== user){
+            ensureBothPresent();
+            if (payload.stroke && payload.stroke.points && payload.stroke.points.length > 0) {
+              const last = payload.stroke.points[payload.stroke.points.length - 1];
+              const rect = canvas.getBoundingClientRect();
+              const scaleX = rect.width / (baseW || canvas.width);
+              const scaleY = rect.height / (baseH || canvas.height);
+              showPainterTag(user_id, rect.left + last.x * scaleX, rect.top + last.y * scaleY, 'Them');
+            }
+          }
+          break;
+
+        case 'undo':
+          if (payload.id){
+            const idx = strokes.findIndex(s=>s.id===payload.id);
+            if (idx>=0){ strokes.splice(idx,1); redraw(); }
+          }
+          if (user_id !== user){ ensureBothPresent(); }
+          break;
+
+        case 'clear':
+          strokes = []; redraw();
+          if (user_id !== user){ ensureBothPresent(); }
+          break;
+
+        case 'set-bg':
+          if (payload.bgDataUrl && payload.baseW && payload.baseH){
+            setBg(payload.bgDataUrl, payload.baseW, payload.baseH);
+          }
+          if (user_id !== user){ ensureBothPresent(); }
+          break;
+
+        case 'leave':
+          if (user_id !== user){ onPartnerLeft(); }
+          break;
+      }
+    }
+  } catch {}
+}
+
+/* ======================== Lobby Status Safety Net ======================== */
+async function pollLobbyStatus(){
+  try{
+    const s = await apiGet(`${base}/api/lobby.php?action=status&lobby_id=${raw}`);
+    if (s && typeof s.players === 'number'){
+      if (s.players >= 2) ensureBothPresent();
+      if (s.players < 2 && bothJoined) onPartnerLeft();
+      return;
+    }
+    if (s && typeof s.status === 'string') {
+      const st = s.status.toLowerCase();
+      if (st === 'ongoing' && !bothJoined) ensureBothPresent();
+      if ((st === 'over' || st === 'closed' || st === 'ended') && bothJoined) onPartnerLeft();
+    }
+  } catch {}
+}
+
+/* ======================== Init ======================== */
+(async ()=>{
+  try {
+    const s = await apiGet(`${base}/api/state.php?lobby=${raw}`);
+    if (s && s.state){
+      const st = s.state;
+      if (st.baseW && st.baseH){ state.baseW = st.baseW; state.baseH = st.baseH; }
+      if (st.bgDataUrl){ setBg(st.bgDataUrl, state.baseW, state.baseH); }
+    }
+  } catch {}
+  fitCanvasToContainer();
+  setZoom(1);
+  sizeVal.textContent = sizeInput.value;
+
+  // Don't wait — allow solo drawing immediately; others can join while you work
+
+  try {
+    await apiPost(`${base}/api/lobby.php`, { action:'join', lobby_id: raw, user_id: user });
+    sendControl('join', { at: Date.now() }).catch(()=>{});
+  } catch {}
+
+  await seedMoves();
+
+  setInterval(pollMoves, 900);
+  setInterval(pollLobbyStatus, 1500);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Zen Garden</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
+  <style>
+    :root {
+      --bg: #1a1611;
+      --sand: #c8b89a;
+      --sand-shadow: #a89070;
+      --panel-bg: rgba(30,24,18,0.92);
+      --text: #f0e8d8;
+      --muted: rgba(240,232,216,0.6);
+      --border: rgba(255,255,255,0.12);
+      --accent: #d4a96a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+
+    #container { display: flex; flex-direction: column; height: 100%; }
+
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: 0.5px; }
+    #header .muted { font-size: 12px; color: var(--muted); }
+
+    #tools {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .tool-label { font-size: 11px; color: var(--muted); letter-spacing: 0.3px; }
+    .rake-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(255,255,255,0.07); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: background .15s, border-color .15s;
+      font-size: 11px; color: var(--muted);
+    }
+    .rake-btn:hover { background: rgba(255,255,255,0.13); }
+    .rake-btn.active { background: rgba(212,169,106,0.18); border-color: var(--accent); color: var(--accent); }
+    .rake-icon { font-size: 18px; }
+    .divider { width: 1px; height: 28px; background: var(--border); }
+
+    button.action-btn {
+      background: rgba(255,255,255,0.08); border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 12px; color: var(--text);
+      font-size: 12px; cursor: pointer; transition: background .15s;
+    }
+    button.action-btn:hover { background: rgba(255,255,255,0.15); }
+    button.action-btn.danger { color: #e07070; border-color: rgba(224,112,112,0.35); }
+
+    #canvas-wrap { flex: 1; position: relative; overflow: hidden; cursor: crosshair; }
+    #garden-canvas { display: block; width: 100%; height: 100%; }
+
+    /* Floating participant tags */
+    .raker-tag {
+      position: absolute;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+    .raker-tag.visible { opacity: 1; }
+
+    #leave-btn {
+      background: rgba(224,112,112,0.15); border: 1px solid rgba(224,112,112,0.4);
+      color: #e07070;
+    }
+  </style>
+</head>
+<body>
+<div id="container">
+  <div id="header">
+    <h1>🪨 Zen Garden</h1>
+    <span class="muted" id="user-label">…</span>
+    <button class="action-btn" id="leave-btn" onclick="leaveGarden()">Leave</button>
+  </div>
+
+  <div id="tools">
+    <span class="tool-label">Rake:</span>
+    <button class="rake-btn active" data-rake="lines"    onclick="selectRake(this,'lines')">   <span class="rake-icon">⊟</span>Lines</button>
+    <button class="rake-btn"        data-rake="wave"     onclick="selectRake(this,'wave')">    <span class="rake-icon">〰</span>Waves</button>
+    <button class="rake-btn"        data-rake="spiral"   onclick="selectRake(this,'spiral')">  <span class="rake-icon">🌀</span>Spiral</button>
+    <button class="rake-btn"        data-rake="dot"      onclick="selectRake(this,'dot')">     <span class="rake-icon">·:·</span>Dots</button>
+    <div class="divider"></div>
+    <span class="tool-label">Size:</span>
+    <input type="range" id="rake-size" min="12" max="80" value="32" style="width:80px;accent-color:var(--accent);">
+    <div class="divider"></div>
+    <button class="action-btn" onclick="smoothSand()">✦ Smooth All</button>
+    <button class="action-btn danger" onclick="clearGarden()">Reset</button>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="garden-canvas"></canvas>
+  </div>
+</div>
+
+<script>
+/* ========== Config ========== */
+const params  = new URLSearchParams(location.search);
+const raw     = params.get('lobby') || 'zen-demo';
+const userId  = parseInt(params.get('user'), 10) || 0;
+
+const url  = new URL(window.location.href);
+const path = url.pathname;
+const idx  = path.indexOf('/games/');
+const base = idx !== -1 ? path.slice(0, idx) : '';
+const LIST_URL = `${base}/list_lobbies.php?game=4`;
+
+/* ========== Participant colors ========== */
+const RAKER_COLORS = ['#e8a94a','#7ab8e8','#b87ae8','#e87a7a','#7ae8b8','#e8e87a'];
+let myColor = RAKER_COLORS[userId % RAKER_COLORS.length];
+
+document.getElementById('user-label').textContent = `User #${userId}`;
+
+/* ========== Canvas setup ========== */
+const canvasWrap = document.getElementById('canvas-wrap');
+const canvas     = document.getElementById('garden-canvas');
+const ctx        = canvas.getContext('2d');
+
+let W = 0, H = 0;
+// Sand grain array: each cell is a depth value 0..255 (0 = flat, 255 = groove)
+let sandGrid = null;
+const CELL = 4; // px per sand cell
+let cols = 0, rows = 0;
+
+/* Stones decorations — declared here so drawSand() can reference them */
+const stones = [];
+
+/* Rake state — declared here so selectRake onclick can reference them */
+let currentRake = 'lines';
+let rakeSize    = 32;
+
+function resizeCanvas() {
+    W = canvasWrap.offsetWidth;
+    H = canvasWrap.offsetHeight;
+    canvas.width  = W;
+    canvas.height = H;
+    cols = Math.ceil(W / CELL);
+    rows = Math.ceil(H / CELL);
+    if (!sandGrid || sandGrid.length !== cols * rows) {
+        sandGrid = new Uint8Array(cols * rows);
+    }
+    drawSand();
+}
+
+new ResizeObserver(resizeCanvas).observe(canvasWrap);
+resizeCanvas();
+
+/* ========== Drawing ========== */
+function sandIdx(c, r) { return r * cols + c; }
+
+function drawSand() {
+    if (!W || !H) return;
+    const img = ctx.createImageData(W, H);
+    const d   = img.data;
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const depth = sandGrid[sandIdx(c, r)] / 255;
+            // Base sand color interpolated to groove color
+            const sr = Math.round(200 + (30 - 200) * depth);
+            const sg = Math.round(184 + (20 - 184) * depth);
+            const sb = Math.round(154 + (10 - 154) * depth);
+
+            const px = c * CELL;
+            const py = r * CELL;
+            for (let dy = 0; dy < CELL && py + dy < H; dy++) {
+                for (let dx = 0; dx < CELL && px + dx < W; dx++) {
+                    const i = ((py + dy) * W + (px + dx)) * 4;
+                    d[i]   = sr;
+                    d[i+1] = sg;
+                    d[i+2] = sb;
+                    d[i+3] = 255;
+                }
+            }
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // Draw stones
+    stones.forEach(s => drawStone(s));
+}
+
+function placeInitialStones() {
+    if (W < 10 || H < 10 || stones.length > 0) return;
+    const count = Math.floor(W * H / 80000) + 3;
+    for (let i = 0; i < count; i++) {
+        stones.push({
+            x: 60 + Math.random() * (W - 120),
+            y: 60 + Math.random() * (H - 120),
+            rx: 16 + Math.random() * 24,
+            ry: 10 + Math.random() * 18,
+            angle: Math.random() * Math.PI,
+            shade: Math.floor(60 + Math.random() * 60),
+        });
+    }
+}
+
+function drawStone(s) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.angle);
+    const g = ctx.createRadialGradient(0, -s.ry * 0.3, 0, 0, 0, Math.max(s.rx, s.ry));
+    const v = s.shade;
+    g.addColorStop(0, `rgb(${v+40},${v+40},${v+36})`);
+    g.addColorStop(1, `rgb(${v},${v},${v-6})`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s.rx, s.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+    ctx.restore();
+}
+
+/* ========== Rake logic ========== */
+
+function selectRake(btn, rake) {
+    document.querySelectorAll('.rake-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRake = rake;
+}
+window.selectRake = selectRake;
+
+document.getElementById('rake-size').addEventListener('input', (e) => {
+    rakeSize = parseInt(e.target.value, 10);
+});
+
+function applyRake(cx, cy, rake, size) {
+    const halfR = Math.ceil(size / (CELL * 2));
+    const cc    = Math.round(cx / CELL);
+    const cr    = Math.round(cy / CELL);
+
+    for (let dr = -halfR; dr <= halfR; dr++) {
+        for (let dc = -halfR; dc <= halfR; dc++) {
+            const c = cc + dc;
+            const r = cr + dr;
+            if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+
+            const dist = Math.sqrt(dc * dc + dr * dr);
+            if (dist > halfR) continue;
+
+            const t = dist / halfR; // 0 center … 1 edge
+            let depth = 0;
+
+            switch (rake) {
+                case 'lines': {
+                    // Parallel horizontal grooves every 3 cells
+                    const pattern = ((r % 3) === 0) ? 1.0 : 0.0;
+                    depth = pattern * (1 - t * 0.4);
+                    break;
+                }
+                case 'wave': {
+                    const wave = (Math.sin((r + dc * 0.3) * 0.9) + 1) * 0.5;
+                    depth = wave * (1 - t * 0.5);
+                    break;
+                }
+                case 'spiral': {
+                    const angle = Math.atan2(dr, dc);
+                    const radDist = dist / halfR;
+                    const spiral = (Math.sin(angle * 3 + radDist * 8) + 1) * 0.5;
+                    depth = spiral * (1 - t * 0.3);
+                    break;
+                }
+                case 'dot': {
+                    // Dotted grid pattern
+                    const dotR = (r % 4 === 0 && c % 4 === 0) ? 1 : 0;
+                    depth = dotR * (1 - t * 0.2);
+                    break;
+                }
+            }
+
+            const newVal = Math.round(Math.max(0, Math.min(255, sandGrid[sandIdx(c, r)] * 0.5 + depth * 255 * 0.7)));
+            sandGrid[sandIdx(c, r)] = newVal;
+        }
+    }
+}
+
+function smoothSand() {
+    if (!sandGrid) return;
+    const smoothed = new Uint8Array(cols * rows);
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            let sum = 0, count = 0;
+            for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) { sum += sandGrid[sandIdx(nc, nr)]; count++; }
+            }
+            smoothed[sandIdx(c, r)] = Math.round(sum / count * 0.5);
+        }
+    }
+    sandGrid = smoothed;
+    drawSand();
+    sendSandState();
+}
+window.smoothSand = smoothSand;
+
+function clearGarden() {
+    if (!confirm('Reset the garden to flat sand?')) return;
+    sandGrid = new Uint8Array(cols * rows);
+    drawSand();
+    sendSandState();
+}
+window.clearGarden = clearGarden;
+
+/* ========== Raker tags ========== */
+const rakerTags = new Map(); // userId → tag element
+const rakerHideTimers = new Map();
+
+function showRakerTag(uid, x, y, color, name) {
+    let tag = rakerTags.get(uid);
+    if (!tag) {
+        tag = document.createElement('div');
+        tag.className = 'raker-tag';
+        tag.style.color      = color;
+        tag.style.background = color.replace(')', ',0.18)').replace('rgb', 'rgba');
+        tag.style.border     = `1px solid ${color}`;
+        tag.textContent      = name || `User ${uid}`;
+        document.getElementById('canvas-wrap').appendChild(tag);
+        rakerTags.set(uid, tag);
+    }
+    tag.style.left = x + 'px';
+    tag.style.top  = (y - 28) + 'px';
+    tag.classList.add('visible');
+
+    clearTimeout(rakerHideTimers.get(uid));
+    rakerHideTimers.set(uid, setTimeout(() => {
+        tag.classList.remove('visible');
+    }, 1200));
+}
+
+/* ========== Input ========== */
+let isDrawing = false;
+let lastSendTime = 0;
+
+canvasWrap.addEventListener('pointerdown', (e) => {
+    isDrawing = true;
+    canvasWrap.setPointerCapture(e.pointerId);
+    doRake(e);
+});
+canvasWrap.addEventListener('pointermove', (e) => { if (isDrawing) doRake(e); });
+canvasWrap.addEventListener('pointerup',   () => { isDrawing = false; });
+
+function doRake(e) {
+    const rect = canvasWrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Check stone collision — don't rake through stones
+    for (const s of stones) {
+        const dx = (x - s.x) / s.rx;
+        const dy = (y - s.y) / s.ry;
+        if (dx * dx + dy * dy < 1.2) return;
+    }
+
+    applyRake(x, y, currentRake, rakeSize);
+    drawSand();
+    showRakerTag(userId, x, y, myColor, `Me`);
+
+    const now = Date.now();
+    if (now - lastSendTime > 80) {
+        lastSendTime = now;
+        sendRakeMove(x / W, y / H, currentRake, rakeSize);
+    }
+}
+
+/* ========== Networking ========== */
+let lastSeq = 0;
+const participantNames = {};
+
+async function apiPost(path, data) {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return r.ok ? r.json() : {};
+}
+async function apiGet(path) {
+    const r = await fetch(path);
+    return r.ok ? r.json() : {};
+}
+
+function sendRakeMove(nx, ny, rake, size) {
+    apiPost(`${base}/api/moves.php`, {
+        lobby_id: raw, user_id: userId,
+        payload: { type: 'rake', nx, ny, rake, size, color: myColor },
+    }).catch(() => {});
+}
+
+function sendSandState() {
+    // Send compressed sand state
+    const stateArr = Array.from(sandGrid);
+    apiPost(`${base}/api/state.php`, {
+        lobby_id: raw, user_id: userId,
+        state: { sandGrid: stateArr, cols, rows, stones },
+    }).catch(() => {});
+}
+
+async function pollMoves() {
+    try {
+        const mv = await apiGet(`${base}/api/moves.php?lobby=${raw}&lastSeq=${lastSeq}`);
+        if (!Array.isArray(mv)) return;
+        for (const m of mv) {
+            lastSeq = m.sequence || lastSeq;
+            const { payload, user_id } = m;
+            if (!payload || user_id === userId) continue;
+
+            const color = payload.color || RAKER_COLORS[user_id % RAKER_COLORS.length];
+            const name  = participantNames[user_id] || `User ${user_id}`;
+
+            if (payload.type === 'rake') {
+                const x = payload.nx * W;
+                const y = payload.ny * H;
+                applyRake(x, y, payload.rake || 'lines', payload.size || 32);
+                drawSand();
+                showRakerTag(user_id, x, y, color, name);
+            } else if (payload.type === 'state_sync') {
+                if (payload.sandGrid && payload.cols && payload.rows) {
+                    sandGrid = new Uint8Array(payload.sandGrid);
+                    cols = payload.cols; rows = payload.rows;
+                    if (payload.stones) stones.splice(0, stones.length, ...payload.stones);
+                    drawSand();
+                }
+            }
+        }
+    } catch {}
+}
+
+async function seedState() {
+    try {
+        const s = await apiGet(`${base}/api/state.php?lobby=${raw}`);
+        if (s && s.state && s.state.sandGrid) {
+            sandGrid = new Uint8Array(s.state.sandGrid);
+            if (s.state.cols) cols = s.state.cols;
+            if (s.state.rows) rows = s.state.rows;
+            if (s.state.stones) stones.splice(0, stones.length, ...s.state.stones);
+            drawSand();
+        } else {
+            placeInitialStones();
+            drawSand();
+        }
+    } catch {
+        placeInitialStones();
+        drawSand();
+    }
+}
+
+function leaveGarden() {
+    apiPost(`${base}/api/lobby.php`, { action: 'close', lobby_id: raw, user_id: userId }).catch(() => {});
+    try { window.parent.postMessage({ type: 'activity_close', lobby: raw }, '*'); } catch {}
+    location.href = LIST_URL;
+}
+window.leaveGarden = leaveGarden;
+
+/* ========== Boot ========== */
+(async () => {
+    await seedState();
+    await apiPost(`${base}/api/lobby.php`, { action: 'join', lobby_id: raw, user_id: userId });
+    setInterval(pollMoves, 800);
+})();
+</script>
+</body>
+</html>
