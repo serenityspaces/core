@@ -527,6 +527,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Linked Locations — regenerate shared secret
+        if ($action === 'regenerate_location') {
+            $locId = (int)($_POST['location_id'] ?? 0);
+            if ($locId) {
+                $locRow = $pdo->prepare('SELECT label FROM locations WHERE id = ? LIMIT 1');
+                $locRow->execute([$locId]);
+                $locRow = $locRow->fetch();
+                if ($locRow) {
+                    $sharedSecret     = bin2hex(random_bytes(32));
+                    $sharedSecretHash = hash('sha256', $sharedSecret);
+                    $pdo->prepare('UPDATE locations SET auth_token_hash = ? WHERE id = ?')
+                        ->execute([$sharedSecretHash, $locId]);
+                    $_SESSION['location_secret_flash'] = [
+                        'id'     => $locId,
+                        'secret' => $sharedSecret,
+                        'label'  => $locRow['label'],
+                    ];
+                    $success = 'Secret regenerated — copy it now.';
+                }
+            }
+        }
+
         // Linked Locations — ping
         if ($action === 'ping_location') {
             $locId = (int)($_POST['location_id'] ?? 0);
@@ -715,10 +737,28 @@ $locations = $isPrimaryInstall
   <?php else: ?>
     <a href="/dashboard.php" class="app-name" style="text-decoration:none;">Serenity Spaces</a>
   <?php endif; ?>
-  <nav style="display:flex;align-items:center;gap:12px;">
+  <div id="sys-docklet" style="display:flex;align-items:center;gap:6px;padding:0 18px;flex:1;overflow:hidden;">
+    <div class="sdock-pill" title="System uptime"><span class="sdock-lbl">UP</span><span class="sdock-val" id="sd-uptime">—</span></div>
+    <div class="sdock-pill" title="CPU load average"><span class="sdock-lbl">CPU</span><span class="sdock-val" id="sd-cpu">—</span></div>
+    <div class="sdock-pill" title="RAM usage"><span class="sdock-lbl">RAM</span><span class="sdock-val" id="sd-ram">—</span></div>
+    <div class="sdock-pill" title="Disk usage"><span class="sdock-lbl">DISK</span><span class="sdock-val" id="sd-disk">—</span></div>
+    <div class="sdock-pill" title="Network in/out"><span class="sdock-lbl">NET</span><span class="sdock-val" id="sd-net">—</span></div>
+  </div>
+  <nav style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
     <a href="/dashboard.php" class="btn btn-ghost btn-sm">← Dashboard</a>
   </nav>
 </header>
+<style>
+.sdock-pill {
+  display:flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.07);
+  border-radius:6px;padding:4px 10px;white-space:nowrap;
+}
+.sdock-lbl { font-size:9.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(221,220,242,0.38); }
+.sdock-val { font-size:12px;font-weight:600;color:#dddcf2;font-variant-numeric:tabular-nums; }
+.sdock-warn { color:#f5c842 !important; }
+.sdock-crit { color:#ef9a9a !important; }
+</style>
 
 <div class="settings-layout">
 
@@ -775,6 +815,14 @@ $locations = $isPrimaryInstall
       Add Account
     </button>
     <div class="settings-nav-label" style="margin-top:8px;">Insights</div>
+    <button class="settings-nav-item" data-section="analytics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zm6.75-9.75c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V19.875c0 .621-.504 1.125-1.125 1.125h-2.25A1.125 1.125 0 019.75 19.875V3.375zm6.75 5.25c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625z"/></svg>
+      Analytics
+    </button>
+    <button class="settings-nav-item" data-section="audit-log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/></svg>
+      Audit Log
+    </button>
     <button class="settings-nav-item" data-section="reviews">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg>
       Session Reviews
@@ -1356,13 +1404,23 @@ $locations = $isPrimaryInstall
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
             <span style="width:8px;height:8px;border-radius:50%;background:<?= $loc['is_active'] ? '#3ecf8e' : '#6b7280' ?>;display:inline-block;" title="<?= $loc['is_active'] ? 'Active' : 'Paused' ?>"></span>
             <form method="post" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
               <input type="hidden" name="action" value="toggle_location">
               <input type="hidden" name="location_id" value="<?= (int)$loc['id'] ?>">
               <button type="submit" style="background:transparent;border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-size:12px;color:var(--text-muted);cursor:pointer;">
                 <?= $loc['is_active'] ? 'Pause' : 'Activate' ?>
               </button>
             </form>
+            <form method="post" style="display:inline;" data-confirm="Regenerate shared secret? The existing secret stops working immediately — you must reconfigure the Alternative server.">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+              <input type="hidden" name="action" value="regenerate_location">
+              <input type="hidden" name="location_id" value="<?= (int)$loc['id'] ?>">
+              <button type="submit" style="background:transparent;border:1px solid rgba(245,200,66,.3);border-radius:5px;padding:4px 10px;font-size:12px;color:#f5c842;cursor:pointer;">
+                Regen Secret
+              </button>
+            </form>
             <form method="post" style="display:inline;" data-confirm="Remove this location? Clients assigned to it will fall back to the Primary server.">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
               <input type="hidden" name="action" value="delete_location">
               <input type="hidden" name="location_id" value="<?= (int)$loc['id'] ?>">
               <button type="submit" style="background:transparent;border:1px solid rgba(239,83,80,.3);border-radius:5px;padding:4px 10px;font-size:12px;color:#ef9a9a;cursor:pointer;">
@@ -1559,6 +1617,98 @@ $locations = $isPrimaryInstall
           <button type="submit" class="btn btn-primary">Create Account</button>
         </form>
       </div>
+    </div>
+
+    <!-- ── Analytics ── -->
+    <div class="settings-section" id="section-analytics">
+      <div class="settings-section-title">Platform Analytics</div>
+      <div class="settings-section-sub">Operator-level capacity and adoption metrics. No client-level data is included.</div>
+
+      <div id="analytics-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:28px;">
+        <div class="glass-panel an-stat-card" id="an-active-pract">
+          <div class="an-stat-label">Active Practitioners</div>
+          <div class="an-stat-val">—</div>
+        </div>
+        <div class="glass-panel an-stat-card" id="an-sessions-30d">
+          <div class="an-stat-label">Sessions (30d)</div>
+          <div class="an-stat-val">—</div>
+          <div class="an-stat-sub" id="an-sessions-total"></div>
+        </div>
+        <div class="glass-panel an-stat-card" id="an-revenue">
+          <div class="an-stat-label">Total Revenue</div>
+          <div class="an-stat-val">—</div>
+        </div>
+        <div class="glass-panel an-stat-card" id="an-mfa">
+          <div class="an-stat-label">MFA Adoption</div>
+          <div class="an-stat-val">—</div>
+          <div class="an-stat-sub" id="an-mfa-sub"></div>
+        </div>
+        <div class="glass-panel an-stat-card" id="an-license-q">
+          <div class="an-stat-label">License Queue</div>
+          <div class="an-stat-val">—</div>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding:20px 24px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">System Resources</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">CPU Load</div>
+            <div class="an-bar-wrap"><div class="an-bar" id="an-bar-cpu"></div></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="an-bar-cpu-lbl"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">RAM</div>
+            <div class="an-bar-wrap"><div class="an-bar" id="an-bar-ram"></div></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="an-bar-ram-lbl"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Disk</div>
+            <div class="an-bar-wrap"><div class="an-bar" id="an-bar-disk"></div></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="an-bar-disk-lbl"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Audit Log ── -->
+    <div class="settings-section" id="section-audit-log">
+      <div class="settings-section-title">Audit Log</div>
+      <div class="settings-section-sub">Tamper-evident HMAC-chained log of all PHI access events. Use "Verify Chain" to check integrity.</div>
+
+      <div class="glass-panel" style="padding:18px 20px;margin-bottom:16px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="flex:1;min-width:160px;">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Event Type</label>
+            <select id="al-filter-type" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+              <option value="">All events</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:160px;">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Practitioner</label>
+            <select id="al-filter-pract" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">From</label>
+            <input type="date" id="al-filter-from" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">To</label>
+            <input type="date" id="al-filter-to" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          </div>
+          <button onclick="auditLogLoad(1)" class="btn btn-primary" style="padding:8px 18px;">Search</button>
+          <button onclick="auditChainVerify()" class="btn" style="padding:8px 18px;border:1px solid rgba(124,106,247,0.4);color:var(--accent);background:rgba(124,106,247,0.08);" id="al-verify-btn">Verify Chain</button>
+        </div>
+        <div id="al-verify-result" style="margin-top:12px;display:none;font-size:13px;border-radius:7px;padding:10px 14px;"></div>
+      </div>
+
+      <div id="al-table-wrap" class="glass-panel" style="overflow:auto;">
+        <div id="al-table-inner" style="padding:20px;color:var(--text-muted);font-size:13px;">Select filters and click Search.</div>
+      </div>
+
+      <div id="al-pagination" style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:14px;"></div>
     </div>
 
     <!-- ── Session Reviews ── -->
@@ -3407,6 +3557,215 @@ async function uploadAdminDpa(e) {
   }
   btn.disabled = false; btn.textContent = 'Upload DPA';
 }
+
+// ── Analytics & Audit Log CSS ─────────────────────────────────
+(function() {
+  const s = document.createElement('style');
+  s.textContent = `
+    .an-stat-card { padding:18px 20px; }
+    .an-stat-label { font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgba(221,220,242,0.45);margin-bottom:8px; }
+    .an-stat-val { font-size:28px;font-weight:700;color:var(--text);line-height:1; }
+    .an-stat-sub { font-size:11.5px;color:rgba(221,220,242,0.4);margin-top:5px; }
+    .an-bar-wrap { height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden; }
+    .an-bar { height:100%;border-radius:3px;background:var(--accent);transition:width 0.4s; }
+    .an-bar.warn { background:#f5c842; }
+    .an-bar.crit { background:#ef5350; }
+    .al-table { width:100%;border-collapse:collapse;font-size:13px; }
+    .al-table th { padding:9px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:rgba(221,220,242,0.45);border-bottom:1px solid rgba(255,255,255,0.07); }
+    .al-table td { padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text);vertical-align:top; }
+    .al-table tr:hover td { background:rgba(124,106,247,0.04); }
+    .al-action-pill { display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(124,106,247,0.12);color:#c5b8ff;border:1px solid rgba(124,106,247,0.2); }
+  `;
+  document.head.appendChild(s);
+})();
+
+// ── System docklet ─────────────────────────────────────────────
+let _sdPrev = null;
+function fmtBytes(b) {
+  if (b >= 1e9) return (b/1e9).toFixed(1) + 'G';
+  if (b >= 1e6) return (b/1e6).toFixed(1) + 'M';
+  if (b >= 1e3) return (b/1e3).toFixed(0) + 'K';
+  return b + 'B';
+}
+function fmtBps(b) { return fmtBytes(b) + '/s'; }
+
+async function sdUpdate() {
+  try {
+    const r = await fetch('/api/admin_stats.php?action=system_stats');
+    const d = await r.json();
+    if (!d.ok) return;
+
+    document.getElementById('sd-uptime').textContent = d.uptime;
+
+    const cpuEl = document.getElementById('sd-cpu');
+    cpuEl.textContent = d.cpu_pct + '%';
+    cpuEl.className = 'sdock-val' + (d.cpu_pct >= 90 ? ' sdock-crit' : d.cpu_pct >= 70 ? ' sdock-warn' : '');
+
+    const ramEl = document.getElementById('sd-ram');
+    ramEl.textContent = fmtBytes(d.mem_used) + ' / ' + fmtBytes(d.mem_total);
+    ramEl.className = 'sdock-val' + (d.mem_pct >= 90 ? ' sdock-crit' : d.mem_pct >= 75 ? ' sdock-warn' : '');
+
+    const diskEl = document.getElementById('sd-disk');
+    diskEl.textContent = d.disk_pct + '%';
+    diskEl.className = 'sdock-val' + (d.disk_pct >= 90 ? ' sdock-crit' : d.disk_pct >= 75 ? ' sdock-warn' : '');
+
+    const netEl = document.getElementById('sd-net');
+    if (_sdPrev && d.ts > _sdPrev.ts) {
+      const dt = d.ts - _sdPrev.ts;
+      const rxRate = Math.max(0, (d.net_rx - _sdPrev.net_rx) / dt);
+      const txRate = Math.max(0, (d.net_tx - _sdPrev.net_tx) / dt);
+      netEl.textContent = '↓' + fmtBps(rxRate) + ' ↑' + fmtBps(txRate);
+    } else {
+      netEl.textContent = '↓… ↑…';
+    }
+    _sdPrev = d;
+
+    // Update resource bars if analytics section is visible
+    sdUpdateBars(d);
+  } catch(e) {}
+}
+
+function sdUpdateBars(d) {
+  function setBar(id, lblId, pct, used, total, unit) {
+    const bar = document.getElementById(id);
+    const lbl = document.getElementById(lblId);
+    if (!bar || !lbl) return;
+    bar.style.width = pct + '%';
+    bar.className = 'an-bar' + (pct >= 90 ? ' crit' : pct >= 75 ? ' warn' : '');
+    lbl.textContent = fmtBytes(used) + ' / ' + fmtBytes(total) + ' (' + pct + '%)';
+  }
+  setBar('an-bar-cpu', 'an-bar-cpu-lbl', d.cpu_pct, 0, 0);
+  document.getElementById('an-bar-cpu-lbl') && (document.getElementById('an-bar-cpu-lbl').textContent = d.cpu_pct + '% load avg');
+  setBar('an-bar-ram',  'an-bar-ram-lbl',  d.mem_pct,  d.mem_used,  d.mem_total);
+  setBar('an-bar-disk', 'an-bar-disk-lbl', d.disk_pct, d.disk_used, d.disk_total);
+}
+
+sdUpdate();
+setInterval(sdUpdate, 5000);
+
+// ── Platform analytics ─────────────────────────────────────────
+async function analyticsLoad() {
+  try {
+    const r = await fetch('/api/admin_stats.php?action=platform_stats');
+    const d = await r.json();
+    if (!d.ok) return;
+    document.querySelector('#an-active-pract .an-stat-val').textContent = d.active_practitioners;
+    document.querySelector('#an-sessions-30d .an-stat-val').textContent = d.sessions_30d.toLocaleString();
+    document.getElementById('an-sessions-total').textContent = d.sessions_total.toLocaleString() + ' all time';
+    document.querySelector('#an-revenue .an-stat-val').textContent = d.revenue_total > 0 ? '£' + d.revenue_total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+    document.querySelector('#an-mfa .an-stat-val').textContent = d.mfa_rate + '%';
+    document.getElementById('an-mfa-sub').textContent = d.mfa_count + ' of ' + d.total_practitioners + ' practitioners';
+    const qEl = document.querySelector('#an-license-q .an-stat-val');
+    qEl.textContent = d.license_queue;
+    qEl.style.color = d.license_queue > 0 ? 'var(--warning, #f5c842)' : '';
+  } catch(e) {}
+}
+
+// ── Audit log ──────────────────────────────────────────────────
+let _alPage = 1;
+let _alLoaded = false;
+
+async function auditLogBootstrap() {
+  if (_alLoaded) return;
+  _alLoaded = true;
+  try {
+    const r = await fetch('/api/admin_stats.php?action=audit_event_types');
+    const d = await r.json();
+    if (!d.ok) return;
+    const typeEl = document.getElementById('al-filter-type');
+    d.types.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; typeEl.appendChild(o); });
+    const practEl = document.getElementById('al-filter-pract');
+    (d.practitioners || []).forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.display_name; practEl.appendChild(o); });
+  } catch(e) {}
+}
+
+function alEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function auditLogLoad(page) {
+  page = page || _alPage;
+  _alPage = page;
+  const params = new URLSearchParams({
+    action:          'audit_log',
+    event_type:      document.getElementById('al-filter-type').value,
+    practitioner_id: document.getElementById('al-filter-pract').value,
+    date_from:       document.getElementById('al-filter-from').value,
+    date_to:         document.getElementById('al-filter-to').value,
+    page,
+  });
+  const wrap = document.getElementById('al-table-inner');
+  wrap.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:13px;">Loading…</div>';
+  try {
+    const r = await fetch('/api/admin_stats.php?' + params);
+    const d = await r.json();
+    if (!d.ok) { wrap.innerHTML = '<div style="padding:20px;color:#ef9a9a;">Error loading log.</div>'; return; }
+    if (!d.rows.length) { wrap.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:13px;">No events match the current filters.</div>'; return; }
+
+    let html = '<table class="al-table"><thead><tr><th>ID</th><th>Timestamp</th><th>Event</th><th>Practitioner</th><th>Session</th><th>Entity</th><th>IP</th></tr></thead><tbody>';
+    d.rows.forEach(row => {
+      html += `<tr>
+        <td style="color:rgba(221,220,242,0.4);font-size:11px;">${alEsc(row.id)}</td>
+        <td style="font-size:11.5px;white-space:nowrap;color:rgba(221,220,242,0.6);">${alEsc((row.created_at||'').replace('T',' ').slice(0,19))}</td>
+        <td><span class="al-action-pill">${alEsc(row.action)}</span></td>
+        <td style="font-size:12px;">${alEsc(row.practitioner_name || (row.practitioner_id ? '#'+row.practitioner_id : '—'))}</td>
+        <td style="font-size:12px;color:rgba(221,220,242,0.5);">${row.session_id ? '#'+alEsc(row.session_id) : '—'}</td>
+        <td style="font-size:12px;color:rgba(221,220,242,0.5);">${row.entity_type ? alEsc(row.entity_type)+(row.entity_id?' #'+alEsc(row.entity_id):'') : '—'}</td>
+        <td style="font-size:11px;color:rgba(221,220,242,0.4);font-family:monospace;">${row.ip_address ? alEsc(row.ip_address) : '<span title="Purged per GDPR retention">—</span>'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    // Pagination
+    const pages = Math.ceil(d.total / d.per_page);
+    const pag = document.getElementById('al-pagination');
+    pag.innerHTML = '';
+    if (pages > 1) {
+      for (let p = 1; p <= pages; p++) {
+        const b = document.createElement('button');
+        b.textContent = p;
+        b.className = 'btn btn-sm' + (p === page ? ' btn-primary' : ' btn-ghost');
+        b.style.minWidth = '32px';
+        b.onclick = () => auditLogLoad(p);
+        pag.appendChild(b);
+      }
+    }
+    pag.insertAdjacentHTML('afterbegin', `<span style="font-size:12px;color:var(--text-muted);margin-right:8px;">${d.total.toLocaleString()} events</span>`);
+  } catch(e) { wrap.innerHTML = '<div style="padding:20px;color:#ef9a9a;">Connection error.</div>'; }
+}
+
+async function auditChainVerify() {
+  const btn    = document.getElementById('al-verify-btn');
+  const result = document.getElementById('al-verify-result');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  result.style.display = 'none';
+  try {
+    const r = await fetch('/api/admin_stats.php?action=verify_chain');
+    const d = await r.json();
+    if (d.intact) {
+      result.style.cssText = 'display:block;background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.25);border-radius:7px;padding:10px 14px;font-size:13px;color:#3ecf8e;margin-top:12px;';
+      result.innerHTML = `<strong>Chain intact.</strong> ${d.checked.toLocaleString()} rows verified.${d.purged_ips > 0 ? ' <span style="color:rgba(221,220,242,0.5);">(' + d.purged_ips + ' rows have GDPR-purged IPs — expected.)</span>' : ''}`;
+    } else {
+      result.style.cssText = 'display:block;background:rgba(239,83,80,0.08);border:1px solid rgba(239,83,80,0.25);border-radius:7px;padding:10px 14px;font-size:13px;color:#ef9a9a;margin-top:12px;';
+      const fb = d.first_break;
+      result.innerHTML = `<strong>Chain broken.</strong> ${d.broken} of ${d.checked} rows failed verification. First break: row #${alEsc(String(fb.id))}, action <em>${alEsc(fb.action)}</em>, ${alEsc(fb.created_at)}${fb.ip_purged?' (IP purged)':''}.`;
+    }
+  } catch(e) {
+    result.style.cssText = 'display:block;background:rgba(239,83,80,0.08);border:1px solid rgba(239,83,80,0.25);border-radius:7px;padding:10px 14px;font-size:13px;color:#ef9a9a;margin-top:12px;';
+    result.textContent = 'Verification request failed.';
+  }
+  result.style.display = '';
+  btn.disabled = false;
+  btn.textContent = 'Verify Chain';
+}
+
+// Lazy-load analytics/audit when their sections are activated
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-section]');
+  if (!btn) return;
+  if (btn.dataset.section === 'analytics') analyticsLoad();
+  if (btn.dataset.section === 'audit-log') auditLogBootstrap();
+});
 
 async function deleteAdminDpa(id) {
   if (!confirm('Delete this DPA document? This cannot be undone.')) return;
