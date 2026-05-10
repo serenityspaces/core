@@ -34,29 +34,28 @@ These are enabled by default on most PHP installations. Check with `php -m` or v
 
 ## Quick Start
 
-### 1. Create the database
+### 1. Prepare a MySQL database user
+
+Create a MySQL user with permission to create and use the SerenitySpaces database. The setup wizard can create the database automatically if the supplied user has the required privileges.
+
+If you prefer to create the database manually first, use:
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE serenityspaces CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p serenityspaces < db/schema.sql
 ```
 
-### 2. Configure the database connection
+You do **not** need to import `db/schema.sql` manually during normal installation. The setup wizard imports the schema for you.
 
-Edit `db/connection.php` or set environment variables:
+### 2. Run the setup wizard
 
-```bash
-export DB_HOST=localhost
-export DB_NAME=serenityspaces
-export DB_USER=youruser
-export DB_PASS=yourpassword
-```
+Visit `/setup.php` in your browser and enter the database host, database name, username, and password.
 
-Set an encryption key for PHI at-rest encryption. This must be a 64-character hex string (32 bytes):
+The setup wizard writes these values to `db/config.php` automatically and generates independent 256-bit encryption keys for PHI and payment credentials:
 
-```bash
-export SMTP_ENCRYPT_KEY=your64charhexkeyhere
-```
+- `SMTP_ENCRYPT_KEY` — used for PHI and sensitive platform encryption
+- `PAYMENT_ENCRYPT_KEY` — used for payment gateway secrets
+
+Do **not** manually edit `db/connection.php` or set these encryption keys yourself during normal setup.
 
 ### 3. Web server
 
@@ -115,9 +114,9 @@ chmod -R 755 assets/uploads assets/backgrounds assets/avatars
 chmod 644 db/connection.php
 ```
 
-### 5. Run setup
+### 5. Complete setup
 
-Visit `/setup.php` in your browser to create the first admin account and configure initial settings.
+Continue through `/setup.php` to choose the installation type, create the first admin account, configure compliance/operator settings, and finish initial email setup.
 
 ### 6. (Optional) Install mPDF for PDF export
 
